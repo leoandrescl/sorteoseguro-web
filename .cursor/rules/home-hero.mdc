@@ -1,0 +1,24 @@
+---
+description: Hero slider Home v2 — mismo alto en todos los slides y resoluciones
+alwaysApply: true
+---
+
+# Hero slider (Home v2)
+
+**PROHIBIDO** que los slides del hero tengan alturas distintas. En **todas** las resoluciones (mobile, tablet, desktop) los 5 banners comparten **un solo alto**.
+
+## Cómo
+
+- Viewport en **CSS grid**; cada slide en `grid-area: 1 / 1`.
+- Inactivos: `visibility: hidden` (siguen ocupando sitio). **Nunca** `display: none` ni altura auto por slide.
+- El más alto (o el `min-height` del viewport) define la fila; el resto se estira a esa altura.
+- **Mobile (≤760px):** el viewport es **vertical** (`aspect-ratio: 1122 / 1402`, igual que las fotos 1122×1402). Prohibido `100svh`, `1 / 1` y alturas distintas por celular. El slide 1 general (cuadrado) va en el **mismo** contenedor vertical. Referencia: `heros-slider-home/NUEVA SLIDE * MOVIL*.png`.
+
+## Contenido
+
+- **No** renderizar el recuadro de 3 premios (`Y más premios` / cols Jeep).
+- Slide 1: sí los **4 bloques** (jumps). Van **abajo**, junto a los CTA, para que se vea la foto.
+- CTA / DigiTicket: **abajo** del slide (`margin-top: auto` en el pie), no pegados al título.
+- Badge (`.ss-home-hero__badge`): **solo el ancho del texto** (`align-self: flex-start` + `width: max-content`). Nunca a todo el ancho del copy.
+
+Si un cambio deja slides de distinto alto: revertir. No “arreglar” mobile rompiendo el alto igual.

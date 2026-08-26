@@ -1,0 +1,40 @@
+---
+description: Producción sorteoseguro.cl — no tocar sin pedido, mu-plugins, pagos, backups
+alwaysApply: true
+---
+
+# Producción y arquitectura
+
+Sitio vivo: **sorteoseguro.cl**. El `.com` es prueba; no mezclar hosts, tokens ni `.env`.
+
+## Antes de cambiar código
+
+Si el usuario dice “no hagas nada / solo revisa / aún no”, **cero edits** (ni CSS “pequeño”). Planificar y esperar “ejecuta” / “haz la fase X”.
+
+- Preguntar impacto en ventas/BD si no está claro.
+- Backup de cada archivo tocado: `.bak-YYYYMMDD-HHMM` (o carpeta `respaldos-produccion/`).
+- Una fase por vez. Avisar cuando esté listo para que el usuario pruebe.
+- Si empeora: revertir al backup de esa fase.
+
+## Publicar en sorteoseguro.cl
+
+Toda página nueva o rediseño **debe subirse al sitio vivo** (credenciales en `.env.local`). Header/footer = chrome. Detalle en `deploy-paginas.mdc`.
+
+## Dónde va el código
+
+- Lógica/UI nueva → **mu-plugin** en `mu-plugins/sorteoseguro-*`.
+- No snippets WPCode/Elementor ad hoc para lo nuevo.
+- **No editar** `wp-content/plugins/lottery-for-woocommerce/**`.
+- Promo Engine: no masivear las 60+ promos; respetar “mostrar en ficha”.
+- No reescribir pedidos históricos al parchear flujos nuevos.
+
+## Pagos y DigiTickets
+
+- Mercado Pago aprobado → pedido WooCommerce **Completado**. Solución robusta (no depender de que el cliente no cierre thank-you). Ver `sorteoseguro-mp-auto-complete.php`.
+- **DigiPack + MP**: la API de MP rechaza `unit_price` negativo. Los descuentos de pack (Promo Engine / fee `[PROMO]`) se absorben al crear la preferencia en `sorteoseguro-mp-pack-preference.php`. **No borrar** ese mu-plugin sin reemplazo. Ver `no-regresiones.mdc`.
+- Números **aleatorios**; el cliente no elige. Imposible duplicar vendidos/reservados. Pending **reserva** el número.
+- Copy visible: **DigiTicket(s)**; nunca “ticket(s)” solos. Ver `digiticket-copy.mdc`.
+
+## No echar a perder lo que ya funciona
+
+Al mejorar UI, guest, auth, GTM, etc.: **prohibido** romper packs+MP, checkout, auto-complete o FOUC ya corregidos. Checklist y registro en `no-regresiones.mdc`.

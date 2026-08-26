@@ -1,0 +1,56 @@
+# Secrets & local env
+.env
+.env.*
+!.env.example
+
+# Backups (local / production snapshots)
+*.bak
+*.bak-*
+**/*.bak
+**/*.bak-*
+respaldos-produccion/
+bkp*/
+_ftp*/
+_ftp_readonly/
+_ftp_readonly_cl/
+
+# WordPress / site dumps (never commit)
+wp-content/
+wp-admin/
+wp-includes/
+*.sql
+*.sql.gz
+*.zip
+
+# Design / media workspaces (huge, not deploy code)
+diseños/
+disenos/
+heros-slider-home/
+digitickets/
+promo-engine-work/
+screenshots*/
+.tmp*/
+_checkout-templates/
+docs/
+
+# Scratch / local captures
+_*.html
+_*.jpeg
+_*.png
+_*.json
+*.log
+
+# OS / IDE noise
+Thumbs.db
+Desktop.ini
+.DS_Store
+node_modules/
+vendor/
+
+# Cursor local state (keep rules/skills via explicit add; ignore caches)
+.cursor/**
+!.cursor/rules/
+!.cursor/rules/**
+!.cursor/skills/
+!.cursor/skills/**
+.cursor/rules/*.bak*

@@ -1,0 +1,26 @@
+---
+description: Flujo barato — ajustes chicos sin exploración extra ni releer chats
+alwaysApply: true
+---
+
+# Flujo barato (tokens)
+
+Los pedidos típicos son CSS/copy de 1 superficie. No montar investigación.
+
+## Prohibido (salvo que el usuario lo pida)
+
+- Leer `agent-transcripts`, SearchConversations o “todo el historial”.
+- Grep/Read en `respaldos-produccion/`, `_ftp_readonly/`, `*.bak-*`, `_checkout-templates/`.
+- Abrir WooCommerce/TUU/Lottery **core** (SSH o disco) para un ajuste visual.
+- Cargar skills de Figma, Notion, canvas, Bugbot, security-review.
+- Reloer `implementar-ui-sorteoseguro` si el pedido es padding, centrar, botón, hover o copy.
+- Task/subagentes, browser MCP, o más de 1 SSH **antes** de codear.
+
+## Flujo
+
+1. Identificar el mu-plugin de esa URL (`sorteoseguro-checkout`, `-cart`, `-home`, …).
+2. Grep **una carpeta**. Editar. Subir. Purge.
+3. SSH: **una sola sesión** al final (backup `.bak-YYYYMMDD-HHMM` + upload + LiteSpeed).
+4. Respuesta corta: qué cambió + cómo probar. Sin recap de fases viejas.
+
+Si el resumen del chat ya tiene el archivo, no volver a leerlo entero.

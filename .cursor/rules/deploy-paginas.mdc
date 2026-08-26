@@ -1,0 +1,24 @@
+---
+description: Toda página nueva o rediseño se sube a sorteoseguro.cl con chrome header/footer
+alwaysApply: true
+---
+
+# Publicar páginas (obligatorio)
+
+Una página **nueva** o un **rediseño** no está listo hasta verse en **https://sorteoseguro.cl**. El local no cuenta.
+
+## Header / footer
+
+- Activar chrome (`ss_chrome_enabled` / `body.ss-chrome`).
+- **Prohibido** clonar header/footer o dejar visible el de Elementor.
+
+## Cómo subir
+
+Credenciales en `.env.local` (`FTP_*` / `SSH_*`). Solo **sorteoseguro.cl** (nunca `.com`).
+
+1. Backup remoto del archivo que se pisa: `.bak-YYYYMMDD-HHMM`.
+2. Subir el mu-plugin (`sorteoseguro-*.php` + carpeta/assets) a `wp-content/mu-plugins/`.
+3. Purgar LiteSpeed (`wp cache flush` + `LiteSpeed\Purge::purge_all()`).
+4. Abrir la URL pública y confirmar header, contenido y footer nuevos.
+
+Si el usuario dice “solo revisa / aún no / no subas”, no desplegar.

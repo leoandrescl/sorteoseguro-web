@@ -1,0 +1,175 @@
+
+/* Ultimate Member registro */
+.ss-auth-card__form--um .um {
+	max-width: none !important;
+	margin: 0 !important;
+}
+.ss-auth-card__form--um .um-form {
+	margin: 0 !important;
+	padding: 0 !important;
+	border: 0 !important;
+	background: transparent !important;
+	box-shadow: none !important;
+}
+.ss-auth-card__form--um .um-form > form {
+	margin: 0 !important;
+}
+.ss-auth-card__form--um .um-field-area {
+	padding: 0 !important;
+	margin: 0 !important;
+}
+.ss-auth-card__form--um .um-field {
+	margin: 0 0 0.85rem !important;
+	padding: 0 !important;
+	border: 0 !important;
+	background: transparent !important;
+}
+.ss-auth-card__form--um .um-field-label {
+	display: none !important;
+}
+.ss-auth-card__form--um .um-col-1,
+.ss-auth-card__form--um .um-col-121,
+.ss-auth-card__form--um .um-col-122,
+.ss-auth-card__form--um .um-col-132,
+.ss-auth-card__form--um .um-col-133,
+.ss-auth-card__form--um .um-row {
+	width: 100% !important;
+	margin: 0 !important;
+	padding: 0 !important;
+}
+.ss-auth-card__form--um .um-row,
+.ss-auth-card__form--um ._um_row_1 {
+	display: grid !important;
+	grid-template-columns: 1fr 1fr !important;
+	gap: 0.85rem !important;
+}
+.ss-auth-card__form--um .um-col-121,
+.ss-auth-card__form--um .um-col-122 {
+	display: contents !important;
+}
+.ss-auth-card__form--um .um-field {
+	margin: 0 !important;
+	width: 100% !important;
+	order: unset !important;
+}
+/* Orden canónico registro (form 481) */
+.ss-auth-card__form--um #um_field_481_first_name { grid-column: 1; grid-row: 1; }
+.ss-auth-card__form--um #um_field_481_first_name_8 { grid-column: 2; grid-row: 1; }
+.ss-auth-card__form--um #um_field_481_first_name_8_9 { grid-column: 1; grid-row: 2; }
+.ss-auth-card__form--um #um_field_481_rut_form { grid-column: 2; grid-row: 2; }
+.ss-auth-card__form--um #um_field_481_user_email { grid-column: 1; grid-row: 3; }
+.ss-auth-card__form--um #um_field_481_telefono { grid-column: 2; grid-row: 3; }
+.ss-auth-card__form--um #um_field_481_user_password { grid-column: 1; grid-row: 4; }
+.ss-auth-card__form--um #um_field_481_confirm_user_password { grid-column: 2; grid-row: 4; }
+.ss-auth-card__form--um #um_field_481_checkbox_registro_acepto { grid-column: 1 / -1; grid-row: 5; }
+.ss-auth-card__form--um #um_field_481_tyc { grid-column: 1 / -1; grid-row: 6; }
+.ss-auth-card__form--um .um-center,
+.ss-auth-card__form--um .um-col-alt { grid-column: 1 / -1; grid-row: 7; }
+.ss-auth-card__form--um .um-field-checkbox,
+.ss-auth-card__form--um .um-field-radio {
+	width: 100% !important;
+	max-width: 100% !important;
+	margin: 0 0 0.75rem !important;
+}
+/* Anula order legacy WPCode en registro */
+body.ss-auth-registro .ss-auth-card__form--um .um-field,
+body.ss-auth-registro .ss-auth-card__form--um [id^="um_field_481_"] {
+	order: unset !important;
+}
+.ss-auth-card__form--um .um-field-checkbox .um-field-area,
+.ss-auth-card__form--um .um-field-radio .um-field-area {
+	padding: 0 !important;
+	width: 100% !important;
+}
+.ss-auth-card__form--um .um-field-checkbox label.um-field-checkbox,
+.ss-auth-card__form--um .um-field-radio label.um-field-radio {
+	display: flex !important;
+	align-items: flex-start !important;
+	gap: 0.65rem !important;
+	width: 100% !important;
+	margin: 0 !important;
+	cursor: pointer;
+}
+.ss-auth-card__form--um .um-field-checkbox-option,
+.ss-auth-card__form--um .um-field-radio-option {
+	display: block !important;
+	flex: 1 1 auto !important;
+	width: auto !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	font-size: 0.84rem !important;
+	line-height: 1.5 !important;
+	color: var(--ss-auth-muted) !important;
+	vertical-align: unset !important;
+}
+.ss-auth-card__form--um .um-field-checkbox-state,
+.ss-auth-card__form--um .um-field-radio-state {
+	flex: 0 0 auto;
+	margin-top: 0.15rem;
+}
+.ss-auth-card__form--um .um-field-checkbox-option input,
+.ss-auth-card__form--um .um-field-radio-option input,
+.ss-auth-card__form--um .um-field-checkbox input[type="checkbox"],
+.ss-auth-card__form--um .um-field-radio input[type="radio"] {
+	width: 16px !important;
+	height: 16px !important;
+	min-width: 16px !important;
+	margin: 0.15rem 0 0 !important;
+	accent-color: var(--ss-auth-purple) !important;
+	flex: 0 0 auto;
+}
+.ss-auth-card__form--um .um-field-checkbox-option a,
+.ss-auth-card__form--um .um-field-radio-option a {
+	color: var(--ss-auth-purple) !important;
+	font-weight: 700 !important;
+	text-decoration: none !important;
+}
+.ss-auth-card__form--um .um-ejemplo-custom {
+	display: none !important;
+}
+.ss-auth-card__form--um .um-field-error,
+.ss-auth-card__form--um .um-field-block {
+	grid-column: 1 / -1;
+}
+.ss-auth-card__form--um .um-field-error .um-field-error-msg {
+	font-size: 0.78rem !important;
+	color: #b42318 !important;
+	margin-top: 0.25rem !important;
+}
+.ss-auth-card__form--um .um-field-type_block {
+	display: none !important;
+}
+.ss-auth-card__form--um .um-field-type_hp {
+	position: absolute !important;
+	left: -9999px !important;
+	width: 1px !important;
+	height: 1px !important;
+	overflow: hidden !important;
+	opacity: 0 !important;
+	pointer-events: none !important;
+}
+.ss-auth-card__form--um .um-center {
+	text-align: left !important;
+	margin-top: 0.35rem !important;
+}
+.ss-auth-card__form--um .um-clear {
+	display: none !important;
+}
+@media (max-width: 760px) {
+	.ss-auth-card__form--um .um-row,
+	.ss-auth-card__form--um ._um_row_1 {
+		grid-template-columns: 1fr !important;
+	}
+	.ss-auth-card__form--um #um_field_481_first_name { grid-row: 1; grid-column: 1; }
+	.ss-auth-card__form--um #um_field_481_first_name_8 { grid-row: 2; grid-column: 1; }
+	.ss-auth-card__form--um #um_field_481_first_name_8_9 { grid-row: 3; grid-column: 1; }
+	.ss-auth-card__form--um #um_field_481_rut_form { grid-row: 4; grid-column: 1; }
+	.ss-auth-card__form--um #um_field_481_user_email { grid-row: 5; grid-column: 1; }
+	.ss-auth-card__form--um #um_field_481_telefono { grid-row: 6; grid-column: 1; }
+	.ss-auth-card__form--um #um_field_481_user_password { grid-row: 7; grid-column: 1; }
+	.ss-auth-card__form--um #um_field_481_confirm_user_password { grid-row: 8; grid-column: 1; }
+	.ss-auth-card__form--um #um_field_481_checkbox_registro_acepto { grid-row: 9; grid-column: 1; }
+	.ss-auth-card__form--um #um_field_481_tyc { grid-row: 10; grid-column: 1; }
+	.ss-auth-card__form--um .um-center,
+	.ss-auth-card__form--um .um-col-alt { grid-row: 11; grid-column: 1; }
+}

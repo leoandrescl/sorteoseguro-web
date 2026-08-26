@@ -1,0 +1,20 @@
+---
+description: Tipografía estándar Sorteo Seguro en todo el trabajo custom
+alwaysApply: true
+---
+
+# Tipografía Sorteo Seguro
+
+En **todo** UI custom (FAQ, PDP/fichas, footer, packs, cookies, chrome, y lo que se cree a futuro) usar exclusivamente:
+
+```css
+font-family: var(--ss-font-family, "Montserrat", "Poppins", "Segoe UI", sans-serif);
+```
+
+## Reglas
+
+- La variable `--ss-font-family` vive en `sorteoseguro-chrome`.
+- El sitio fuerza **Geologica** vía WPCode (`body, p, h1… !important`). En páginas chrome el override `print_font_override()` gana con `body.ss-chrome … !important`.
+- No usar Inter, Roboto, Arial, Geologica, system-ui ni otras familias.
+- Al añadir CSS nuevo: declarar la familia en el root del componente **y** en descendientes con `!important` si el theme puede pisarlo.
+- Si la superficie no pasa por chrome, llamar `SorteoSeguro_Chrome::enqueue_fonts()`.

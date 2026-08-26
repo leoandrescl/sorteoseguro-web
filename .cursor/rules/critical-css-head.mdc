@@ -1,0 +1,63 @@
+---
+description: CSS crítico en wp_head + no regresar FOUC/regresiones UI ya corregidas.
+alwaysApply: true
+---
+
+# CSS crítico en `<head>` (obligatorio)
+
+En **toda** superficie custom (home, checkout, auth, contacto, FAQ, PDP, thank-you, packs, etc.):
+
+1. CSS de first paint (o el CSS completo si la superficie es un formulario/layout denso) **inline en `wp_head` prioridad 3**.
+2. **No** depender solo de `wp_enqueue_style` ni de CSS en `wp_footer` para la primera pintura (LiteSpeed puede diferirlos → FOUC, iconos SVG gigantes, layout roto un instante).
+3. Respaldo: enqueue + inline en footer OK **además** del head, nunca en reemplazo.
+
+## Patrón
+
+```php
+add_action('wp_head', [__CLASS__, 'print_critical_css'], 3);
+
+public static function print_critical_css(): void {
+    if (!self::is_surface_page()) {
+        return;
+    }
+    $path = self::DIR . '/assets/<modulo>-critical.css'; // o checkout.css completo
+    if (!is_readable($path)) {
+        return;
+    }
+    $css = file_get_contents($path);
+    if ($css === false || $css === '') {
+        return;
+    }
+    echo "\n<!-- ss-<modulo> critical v" . esc_html(self::VERSION) . " -->\n";
+    echo '<style id="ss-<modulo>-critical">' . $css . "</style>\n";
+}
+```
+
+## Checkout (caso sensible)
+
+- `sorteoseguro-checkout`: **imprimir `checkout.css` completo en `wp_head` prioridad 3** (`print_critical_css`).
+- Incluir siempre tamaños de SVG/iconos con `!important` (`.ss-co-row__ico svg`, reserve, trust, etc.).
+- Acordeón cupones: estado abierto vía `.ss-co-coupon.is-open` + `display: block !important` (no solo quitar `[hidden]`).
+- JS de cupones: binding a nivel `document` (capture), **fuera** de cualquier early-return del form.
+
+## Checklist al cerrar UI
+
+- [ ] CSS en `wp_head` prioridad ≤ 5
+- [ ] Recarga en incógnito: sin flash de iconos gigantes / Elementor / layout roto
+- [ ] Enqueue o inline footer solo como respaldo
+- [ ] Si se “arregló” FOUC, cupones, guest checkout, radios, logos: **no reintroducir** el patrón que lo rompió
+
+# No regresiones
+
+Si un bug UI/UX **ya se corrigió** en este proyecto (FOUC, cupones, checkout guest, hover fucsia, DigiTicket copy, hero mismo alto, etc.):
+
+- **Prohibido** volver a romperlo al hacer otro cambio.
+- Antes de quitar hooks/CSS/JS “viejos”, verificar que no son el arreglo de un bug conocido.
+- Al tocar checkout/auth/home: probar first paint + interacción clave (cupón, radios, guest form) en incógnito.
+- Regla ampliada (pagos, packs, inventario de arreglos): `no-regresiones.mdc`.
+
+## Referencias
+
+- Checkout: `print_critical_css()` en `sorteoseguro-checkout.php` + `checkout.js` (cupones globales).
+- Auth: `auth-critical.css` + `print_critical_css()` prioridad 3.
+- Contacto: CSS completo también en head.

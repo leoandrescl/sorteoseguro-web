@@ -1,0 +1,473 @@
+/* Sorteo Seguro – Banner de cookies (Complianz)
+   Tamaño cercano al original 542x224, esquina inferior derecha. */
+
+:root {
+	--ss-cookie-purple: #5b2fd4;
+	--ss-cookie-purple-hover: #4b24b8;
+	--ss-cookie-lavender: #f3efff;
+	--ss-cookie-border: #d9ccff;
+	--ss-cookie-text: #1b1833;
+	--ss-cookie-muted: #5b6172;
+	--ss-cookie-line: #eceaf3;
+	--ss-cookie-shadow: 0 10px 28px rgba(28, 18, 64, 0.14);
+	--ss-cookie-shield: url("{{SS_COOKIE_SHIELD}}");
+	--ss-font-family: "Montserrat", "Poppins", "Segoe UI", sans-serif;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner.cmplz-hidden {
+	display: none !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner.cmplz-show {
+	position: fixed !important;
+	left: auto !important;
+	right: 20px !important;
+	top: auto !important;
+	bottom: 20px !important;
+	transform: none !important;
+	width: 560px !important;
+	max-width: 560px !important;
+	min-height: 0 !important;
+	height: auto !important;
+	margin: 0 !important;
+	padding: 14px 16px 10px !important;
+	display: grid !important;
+	grid-template-columns: 92px minmax(0, 1fr) !important;
+	grid-template-rows: auto auto auto auto !important;
+	column-gap: 6px !important;
+	row-gap: 6px !important;
+	background: #fff !important;
+	color: var(--ss-cookie-text) !important;
+	border: 0 !important;
+	border-radius: 16px !important;
+	box-shadow: var(--ss-cookie-shadow) !important;
+	overflow: visible !important;
+	font-family: var(--ss-font-family, "Montserrat", "Poppins", "Segoe UI", sans-serif) !important;
+	box-sizing: border-box !important;
+	z-index: 999999 !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner.ss-cookie-prefs-open {
+	width: 560px !important;
+	max-width: min(560px, calc(100vw - 24px)) !important;
+	max-height: min(80vh, 560px) !important;
+	overflow-x: hidden !important;
+	overflow-y: auto !important;
+	grid-template-columns: 56px minmax(0, 1fr) !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-header {
+	display: contents !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	background: transparent !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-logo {
+	grid-column: 1 !important;
+	grid-row: 1 / span 3 !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	width: 92px !important;
+	min-height: 92px !important;
+	margin: 0 !important;
+	padding: 0 4px 0 0 !important;
+	background-image: var(--ss-cookie-shield) !important;
+	background-repeat: no-repeat !important;
+	background-position: center !important;
+	background-size: 88px auto !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-logo img {
+	width: 88px !important;
+	height: 88px !important;
+	max-width: 88px !important;
+	opacity: 0 !important;
+	visibility: hidden !important;
+	margin: 0 !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner.ss-cookie-prefs-open .cmplz-logo {
+	grid-column: 1 !important;
+	grid-row: 1 !important;
+	width: 56px !important;
+	min-height: 40px !important;
+	background-size: 48px auto !important;
+	align-self: center !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-title {
+	grid-column: 2 !important;
+	grid-row: 1 !important;
+	padding: 2px 28px 0 0 !important;
+	margin: 0 !important;
+	font-size: 16px !important;
+	line-height: 1.2 !important;
+	font-weight: 800 !important;
+	letter-spacing: -0.02em !important;
+	color: var(--ss-cookie-text) !important;
+	font-family: inherit !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-close {
+	position: absolute !important;
+	top: 10px !important;
+	right: 10px !important;
+	width: 24px !important;
+	height: 24px !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	border: 0 !important;
+	border-radius: 999px !important;
+	background: var(--ss-cookie-lavender) !important;
+	color: #2b2b38 !important;
+	cursor: pointer !important;
+	z-index: 3 !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-close svg {
+	width: 9px !important;
+	height: 9px !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-close:hover {
+	background: #e7dcff !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-divider,
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-links.cmplz-information,
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-deny,
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-btn.cmplz-manage-options,
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-link.impressum {
+	display: none !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-body {
+	grid-column: 2 !important;
+	grid-row: 2 !important;
+	padding: 0 8px 0 0 !important;
+	margin: 0 !important;
+	min-width: 0 !important;
+	max-width: 100% !important;
+	background: transparent !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner.ss-cookie-prefs-open .cmplz-body {
+	grid-column: 1 / -1 !important;
+	padding: 0 !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-message,
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-message span {
+	margin: 0 !important;
+	font-size: 11.5px !important;
+	line-height: 1.4 !important;
+	font-weight: 400 !important;
+	color: var(--ss-cookie-muted) !important;
+	font-family: inherit !important;
+	white-space: normal !important;
+	overflow: visible !important;
+	word-wrap: break-word !important;
+	overflow-wrap: anywhere !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .ss-cookie-hl,
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-message strong.ss-cookie-hl {
+	color: var(--ss-cookie-purple) !important;
+	font-weight: 700 !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-categories {
+	display: none;
+	flex-direction: column;
+	gap: 6px;
+	margin-top: 8px;
+	width: 100% !important;
+	min-width: 0 !important;
+	max-width: 100% !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner.ss-cookie-prefs-open .cmplz-categories {
+	display: flex !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-category {
+	border: 1px solid var(--ss-cookie-line) !important;
+	border-radius: 8px !important;
+	padding: 6px 8px !important;
+	margin: 0 !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	min-width: 0 !important;
+	height: auto !important;
+	min-height: 0 !important;
+	background: #faf9fd !important;
+	box-sizing: border-box !important;
+	overflow: visible !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-category summary {
+	display: block !important;
+	list-style: none !important;
+	cursor: pointer !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-category summary::-webkit-details-marker {
+	display: none !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-category-header {
+	display: flex !important;
+	flex-direction: row !important;
+	flex-wrap: nowrap !important;
+	align-items: center !important;
+	justify-content: space-between !important;
+	gap: 8px !important;
+	width: 100% !important;
+	min-width: 0 !important;
+	box-sizing: border-box !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-category-title {
+	flex: 1 1 auto !important;
+	min-width: 0 !important;
+	color: var(--ss-cookie-text) !important;
+	font-size: 12px !important;
+	font-weight: 700 !important;
+	white-space: nowrap !important;
+	overflow: hidden !important;
+	text-overflow: ellipsis !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-always-active,
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-banner-checkbox {
+	display: inline-flex !important;
+	align-items: center !important;
+	gap: 6px !important;
+	flex: 0 0 auto !important;
+	white-space: nowrap !important;
+	color: var(--ss-cookie-text) !important;
+	font-size: 11px !important;
+	position: static !important;
+	margin: 0 !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-banner-checkbox input {
+	position: relative !important;
+	opacity: 1 !important;
+	appearance: auto !important;
+	-webkit-appearance: checkbox !important;
+	width: 15px !important;
+	height: 15px !important;
+	margin: 0 !important;
+	flex: 0 0 15px !important;
+	accent-color: var(--ss-cookie-purple) !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-label {
+	display: inline-flex !important;
+	align-items: center !important;
+	margin: 0 !important;
+	width: auto !important;
+	height: auto !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-label::before,
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-label::after {
+	display: none !important;
+	content: none !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-icon.cmplz-open {
+	flex: 0 0 16px !important;
+	width: 16px !important;
+	height: 16px !important;
+	margin: 0 !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-description {
+	color: var(--ss-cookie-muted) !important;
+	font-size: 11px !important;
+	padding-top: 6px !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-buttons {
+	grid-column: 2 !important;
+	grid-row: 3 !important;
+	display: flex !important;
+	flex-wrap: nowrap !important;
+	align-items: center !important;
+	justify-content: flex-start !important;
+	gap: 8px !important;
+	padding: 2px 8px 2px 0 !important;
+	margin: 0 !important;
+	min-width: 0 !important;
+	background: transparent !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner.ss-cookie-prefs-open .cmplz-buttons {
+	grid-column: 1 / -1 !important;
+	flex-wrap: wrap !important;
+	padding: 4px 0 2px !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-btn {
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	gap: 5px !important;
+	min-height: 32px !important;
+	height: 32px !important;
+	padding: 0 10px !important;
+	margin: 0 !important;
+	border-radius: 8px !important;
+	font-size: 12px !important;
+	font-weight: 700 !important;
+	line-height: 1 !important;
+	letter-spacing: -0.01em !important;
+	font-family: inherit !important;
+	text-decoration: none !important;
+	box-shadow: none !important;
+	cursor: pointer !important;
+	white-space: nowrap !important;
+	flex: 1 1 0 !important;
+	transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-btn .ss-cookie-ico {
+	width: 13px;
+	height: 13px;
+	flex: 0 0 13px;
+	display: block;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-btn.cmplz-view-preferences {
+	order: 1 !important;
+	display: inline-flex !important;
+	background: #fff !important;
+	color: var(--ss-cookie-purple) !important;
+	border: 1.5px solid var(--ss-cookie-border) !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-btn.cmplz-save-preferences {
+	order: 1 !important;
+	display: none !important;
+	background: #fff !important;
+	color: var(--ss-cookie-purple) !important;
+	border: 1.5px solid var(--ss-cookie-border) !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-btn.cmplz-view-preferences:hover,
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-btn.cmplz-save-preferences:hover {
+	background: var(--ss-cookie-lavender) !important;
+	border-color: var(--ss-cookie-purple) !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-btn.cmplz-accept {
+	order: 2 !important;
+	background: var(--ss-cookie-purple) !important;
+	color: #fff !important;
+	border: 1.5px solid var(--ss-cookie-purple) !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-btn.cmplz-accept:hover {
+	background: var(--ss-cookie-purple-hover) !important;
+	border-color: var(--ss-cookie-purple-hover) !important;
+	color: #fff !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner.ss-cookie-prefs-open .cmplz-view-preferences {
+	display: none !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner.ss-cookie-prefs-open .cmplz-save-preferences {
+	display: inline-flex !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-btn.cmplz-deny,
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-btn.cmplz-manage-options {
+	display: none !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-documents {
+	grid-column: 1 / -1 !important;
+	grid-row: 4 !important;
+	display: block !important;
+	margin: 4px 0 0 !important;
+	padding: 8px 4px 0 !important;
+	border-top: 1px solid var(--ss-cookie-line) !important;
+	background: transparent !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-documents > ul {
+	display: none !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .ss-cookie-foot {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	color: var(--ss-cookie-muted);
+	font-size: 10.5px;
+	line-height: 1.35;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .ss-cookie-foot__lock {
+	width: 12px;
+	height: 12px;
+	margin-top: 1px;
+	flex: 0 0 12px;
+	color: var(--ss-cookie-purple);
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .ss-cookie-foot a {
+	color: #3b5bdb !important;
+	font-weight: 600 !important;
+	text-decoration: none !important;
+}
+
+#cmplz-cookiebanner-container .cmplz-cookiebanner .ss-cookie-foot a:hover {
+	text-decoration: underline !important;
+}
+
+@media (max-width: 600px) {
+	#cmplz-cookiebanner-container .cmplz-cookiebanner.cmplz-show {
+		right: 8px !important;
+		left: 8px !important;
+		bottom: 8px !important;
+		width: auto !important;
+		max-width: none !important;
+		padding: 12px 12px 8px !important;
+		grid-template-columns: 72px minmax(0, 1fr) !important;
+		border-radius: 14px !important;
+	}
+
+	#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-logo {
+		width: 72px !important;
+		min-height: 72px !important;
+		background-size: 70px auto !important;
+	}
+
+	#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-title {
+		font-size: 15px !important;
+		padding: 2px 26px 0 0 !important;
+	}
+
+	#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-body {
+		padding: 0 4px 0 0 !important;
+	}
+
+	#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-buttons {
+		flex-wrap: wrap !important;
+		padding: 2px 0 0 !important;
+	}
+
+	#cmplz-cookiebanner-container .cmplz-cookiebanner .cmplz-btn {
+		flex: 1 1 calc(50% - 8px) !important;
+		font-size: 11.5px !important;
+	}
+}

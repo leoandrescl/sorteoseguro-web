@@ -1,0 +1,17 @@
+---
+description: Copy de marca — siempre DigiTicket(s), nunca “ticket(s)” solo
+alwaysApply: true
+---
+
+# DigiTicket (copy obligatorio)
+
+En **todo** texto de UI, marketing, emails, FAQ, home, PDP, checkout, packs, banners y reglas nuevas:
+
+- Decir **DigiTicket** / **DigiTickets**.
+- **Nunca** “ticket”, “tickets”, “Ticket” o “Tickets” solos (ni en títulos, CTAs, microcopy, alt, aria-label visibles al usuario).
+- Plural: **DigiTickets** (no “DigiTicket’s” ni “Digi tickets”).
+- Si un diseño o string legado dice “Más tickets…” → corregir a **Más DigiTickets…**
+- Excepción técnica interna: nombres de API/meta/código Lottery (`_lty_*`, variables PHP) pueden seguir diciendo ticket; el **copy visible** no.
+
+Mal: `Más tickets, más posibilidades`  
+Bien: `Más DigiTickets, más posibilidades`

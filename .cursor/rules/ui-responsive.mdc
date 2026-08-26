@@ -1,0 +1,31 @@
+---
+description: Responsive Sorteo Seguro — mobile-first, header compacto, orden PDP, sin solapes
+globs: mu-plugins/**/*.{css,php,js}
+alwaysApply: false
+---
+
+# Responsive (Sorteo Seguro)
+
+No dar por lista una UI sin revisar **~375px, ~782px y desktop**. Si el usuario manda ss1/ss2, el ss2 manda.
+
+## Header (`sorteoseguro-chrome`)
+
+- Compacto: padding ~`0.55rem 0` (mobile ~`0.5rem`). No inflar con Elementor.
+- Una sola fila: logo | menú | iconos. Iconos **nunca** a dos filas. Menú **no** solapa login.
+- Breakpoints chrome: gutter `<1440`; nav `<1200`; admin-bar sticky `<782`; logo compacto `<400`.
+
+## PDP
+
+- Mobile-first: DOM = orden visual. Grid desktop solo desde **`min-width: 981px`**.
+- Mobile: 1) video+galería 2) columna compra (derecha) 3) resto izquierda.
+- Desktop: izq media/tabs; der título → intro → características → fecha/contador → packs.
+- Galería: caja de alto fijo; el media hace `object-fit`, el contenedor no crece.
+- Shorts: no 16:9 extremo ni fullscreen.
+
+## Home / FAQ / packs
+
+- **Hero:** los 5 slides **mismo alto** en 375, 782 y desktop. Nunca `display: none` por slide. Ver `home-hero.mdc`.
+- Cards de un bloque (concursos, ganadores, premios) **mismo alto**.
+- Flechas de carrusel consistentes entre secciones.
+- Packs rotos tras un “ajuste” → revertir, no parchear encima.
+- FAQ: una acordeón abierta a la vez; ninguna abierta al cargar.

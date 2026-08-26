@@ -1,0 +1,462 @@
+/* Sorteo Seguro – Chrome compartido (header + ancho estándar)
+   Activo en body.ss-chrome (PDP, FAQ, futuras plantillas). */
+
+:root {
+	--ss-content-max: 1400px;
+	--ss-content-gutter: 0px;
+	--ss-font-family: "Montserrat", "Poppins", "Segoe UI", sans-serif;
+}
+
+@media (max-width: 1439px) {
+	:root {
+		--ss-content-gutter: 1rem;
+	}
+}
+
+body.ss-chrome {
+	display: block !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	min-height: 0 !important;
+	justify-content: unset !important;
+	align-items: unset !important;
+	font-family: var(--ss-font-family) !important;
+}
+
+/* Gana a WPCode/theme: body, p, h1… { font-family: Geologica !important } */
+body.ss-chrome,
+body.ss-chrome p,
+body.ss-chrome h1,
+body.ss-chrome h2,
+body.ss-chrome h3,
+body.ss-chrome h4,
+body.ss-chrome h5,
+body.ss-chrome h6,
+body.ss-chrome a,
+body.ss-chrome span,
+body.ss-chrome li,
+body.ss-chrome label,
+body.ss-chrome strong,
+body.ss-chrome em,
+body.ss-chrome small,
+body.ss-chrome button,
+body.ss-chrome input,
+body.ss-chrome select,
+body.ss-chrome textarea,
+body.ss-chrome .main-header,
+body.ss-chrome .main-header-v2,
+body.ss-chrome #masthead,
+body.ss-chrome #masthead *,
+body.ss-chrome .ss-faq,
+body.ss-chrome .ss-faq *,
+body.ss-chrome .ss-pdp,
+body.ss-chrome .ss-pdp *,
+body.ss-chrome .ss-home,
+body.ss-chrome .ss-home *,
+body.ss-chrome .ss-contact,
+body.ss-chrome .ss-contact *,
+body.ss-chrome .ss-qs,
+body.ss-chrome .ss-qs *,
+body.ss-chrome .ss-legal,
+body.ss-chrome .ss-legal *,
+body.ss-chrome .ss-footer,
+body.ss-chrome .ss-footer *,
+body.ss-chrome .ss-packs-wrap,
+body.ss-chrome .ss-packs-wrap *,
+body.ss-chrome .purchase-panel,
+body.ss-chrome .purchase-panel * {
+	font-family: var(--ss-font-family) !important;
+}
+
+/* Boxicons: no heredar Montserrat o se ven como ☐ */
+body.ss-chrome .bx,
+body.ss-chrome i.bx,
+body.ss-chrome .bxs,
+body.ss-chrome .bxl,
+body.ss-chrome .menu-toggle i,
+body.ss-chrome .icon-btn i,
+body.ss-chrome .main-header i,
+body.ss-chrome .main-header-v2 i,
+body.ss-chrome #masthead i {
+	font-family: boxicons !important;
+	font-weight: normal !important;
+	font-style: normal !important;
+}
+
+/* Evita header duplicado de algunos themes */
+body.ss-chrome #site-header {
+	display: none !important;
+}
+
+body.ss-chrome #masthead,
+body.ss-chrome header#masthead {
+	min-height: 0 !important;
+	height: auto !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	background: #fff !important;
+	box-shadow: 0 1px 0 rgba(20, 18, 40, 0.06);
+}
+
+/* Elementor/HFE suele inflar padding del contenedor del header */
+body.ss-chrome #masthead .elementor,
+body.ss-chrome #masthead .elementor-element,
+body.ss-chrome #masthead .e-con,
+body.ss-chrome #masthead .e-con-inner,
+body.ss-chrome #masthead .elementor-widget,
+body.ss-chrome #masthead .elementor-widget-container {
+	padding-top: 0 !important;
+	padding-bottom: 0 !important;
+	margin-top: 0 !important;
+	margin-bottom: 0 !important;
+	min-height: 0 !important;
+	--padding-top: 0px !important;
+	--padding-bottom: 0px !important;
+	--margin-top: 0px !important;
+	--margin-bottom: 0px !important;
+}
+
+body.ss-chrome .main-header,
+body.ss-chrome .main-header-v2 {
+	position: sticky !important;
+	top: 0 !important;
+	left: auto !important;
+	width: 100% !important;
+	background-color: #fff !important;
+	padding: 0.55rem 0 !important;
+	min-height: 0 !important;
+	z-index: 1000;
+	box-shadow: none;
+}
+
+/* Contenedor header = mismo shell 1400px que el contenido */
+body.ss-chrome #masthead .e-con-boxed > .e-con-inner,
+body.ss-chrome #masthead .e-con-inner,
+body.ss-chrome .main-header .header-container,
+body.ss-chrome .main-header-v2 .header-container,
+body.ss-chrome .main-header .container,
+body.ss-chrome .main-header-v2 .container {
+	max-width: var(--ss-content-max) !important;
+	width: 100% !important;
+	margin-left: auto !important;
+	margin-right: auto !important;
+	padding-top: 0 !important;
+	padding-bottom: 0 !important;
+	padding-left: var(--ss-content-gutter) !important;
+	padding-right: var(--ss-content-gutter) !important;
+	box-sizing: border-box !important;
+	--padding-left: 0px !important;
+	--padding-right: 0px !important;
+	--container-max-width: var(--ss-content-max) !important;
+}
+
+body.ss-chrome .main-header .logo img,
+body.ss-chrome .main-header-v2 .logo img {
+	max-height: 42px !important;
+	width: auto !important;
+}
+
+@media (max-width: 1200px) {
+	body.ss-chrome #masthead,
+	body.ss-chrome #masthead .elementor,
+	body.ss-chrome #masthead .e-con,
+	body.ss-chrome #masthead .e-con-inner,
+	body.ss-chrome #masthead .elementor-widget,
+	body.ss-chrome #masthead .elementor-widget-container,
+	body.ss-chrome .main-header,
+	body.ss-chrome .main-header-v2 {
+		width: 100% !important;
+		max-width: 100% !important;
+		box-sizing: border-box !important;
+	}
+	body.ss-chrome #masthead .e-con-boxed > .e-con-inner,
+	body.ss-chrome #masthead .e-con-inner {
+		padding-left: 0 !important;
+		padding-right: 0 !important;
+		--padding-left: 0px !important;
+		--padding-right: 0px !important;
+	}
+	body.ss-chrome .main-header,
+	body.ss-chrome .main-header-v2 {
+		padding: 0.55rem 1rem !important;
+		box-sizing: border-box !important;
+	}
+	body.ss-chrome .main-header .header-container,
+	body.ss-chrome .main-header-v2 .header-container,
+	body.ss-chrome .main-header .container,
+	body.ss-chrome .main-header-v2 .container {
+		display: flex !important;
+		flex-direction: row !important;
+		flex-wrap: nowrap !important;
+		align-items: center !important;
+		justify-content: flex-start !important;
+		grid-template-columns: none !important;
+		grid-template-rows: none !important;
+		width: 100% !important;
+		max-width: 100% !important;
+		margin: 0 !important;
+		padding: 0 !important;
+		gap: 0.5rem !important;
+		box-sizing: border-box !important;
+		position: relative !important;
+	}
+	body.ss-chrome .main-header .logo,
+	body.ss-chrome .main-header-v2 .logo {
+		order: 1 !important;
+		flex: 1 1 0% !important;
+		min-width: 0 !important;
+		max-width: none !important;
+		margin: 0 !important;
+		padding-right: 0.25rem !important;
+		justify-content: flex-start !important;
+		align-items: center !important;
+		position: static !important;
+		overflow: hidden !important;
+		white-space: nowrap !important;
+		text-overflow: ellipsis !important;
+	}
+	body.ss-chrome .main-header .logo .logo-icon-wrapper,
+	body.ss-chrome .main-header-v2 .logo .logo-icon-wrapper {
+		flex-shrink: 0 !important;
+	}
+	body.ss-chrome .main-header .menu-toggle,
+	body.ss-chrome .main-header-v2 .menu-toggle,
+	body.ss-chrome .main-header button.menu-toggle,
+	body.ss-chrome .main-header-v2 button.menu-toggle {
+		order: 2 !important;
+		position: static !important;
+		inset: auto !important;
+		left: auto !important;
+		right: auto !important;
+		top: auto !important;
+		bottom: auto !important;
+		float: none !important;
+		display: inline-flex !important;
+		flex-direction: row !important;
+		align-items: center !important;
+		justify-content: center !important;
+		flex: 0 0 44px !important;
+		width: 44px !important;
+		height: 44px !important;
+		min-width: 44px !important;
+		min-height: 44px !important;
+		max-width: 44px !important;
+		max-height: 44px !important;
+		margin: 0 0 0 auto !important;
+		padding: 0 !important;
+		border: 1px solid #1f2430 !important;
+		border-radius: 50% !important;
+		background: #fff !important;
+		box-shadow: none !important;
+		font-size: 1.45rem !important;
+		line-height: 1 !important;
+		color: #6b3bb8 !important;
+		z-index: 2 !important;
+		overflow: hidden !important;
+		transform: none !important;
+	}
+	body.ss-chrome .main-header .menu-toggle i,
+	body.ss-chrome .main-header-v2 .menu-toggle i {
+		position: static !important;
+		display: block !important;
+		width: auto !important;
+		height: auto !important;
+		line-height: 1 !important;
+		pointer-events: none !important;
+	}
+	body.ss-chrome .main-header .header-actions,
+	body.ss-chrome .main-header-v2 .header-actions {
+		order: 3 !important;
+		display: flex !important;
+		align-items: center !important;
+		flex: 0 0 auto !important;
+		flex-wrap: nowrap !important;
+		flex-shrink: 0 !important;
+		margin: 0 !important;
+		padding: 0 !important;
+		gap: 0.45rem !important;
+		position: static !important;
+		inset: auto !important;
+		top: auto !important;
+		right: auto !important;
+		left: auto !important;
+		bottom: auto !important;
+		float: none !important;
+		transform: none !important;
+		z-index: 2 !important;
+	}
+	body.ss-chrome .main-header .header-actions .icon-btn,
+	body.ss-chrome .main-header-v2 .header-actions .icon-btn {
+		position: relative !important;
+		flex: 0 0 44px !important;
+		width: 44px !important;
+		height: 44px !important;
+		min-width: 44px !important;
+		margin: 0 !important;
+		overflow: visible !important;
+		z-index: 1 !important;
+	}
+	body.ss-chrome .main-header .cart-badge,
+	body.ss-chrome .main-header-v2 .cart-badge {
+		top: -4px !important;
+		right: -4px !important;
+		z-index: 2 !important;
+	}
+	body.ss-chrome .main-header .main-nav,
+	body.ss-chrome .main-header-v2 .main-nav {
+		order: 4 !important;
+		display: none !important;
+		position: absolute !important;
+		top: calc(100% + 0.35rem) !important;
+		left: 0 !important;
+		right: 0 !important;
+		flex: none !important;
+		width: 100% !important;
+		max-width: 100% !important;
+		margin: 0 !important;
+		padding: 0.4rem !important;
+		background: #fff !important;
+		border: 1px solid #ece8f5 !important;
+		border-radius: 14px !important;
+		box-shadow: 0 12px 32px rgba(24, 18, 48, 0.1) !important;
+		z-index: 20 !important;
+	}
+	body.ss-chrome .main-header .main-nav.open,
+	body.ss-chrome .main-header-v2 .main-nav.open {
+		display: block !important;
+	}
+	body.ss-chrome .main-header .main-nav ul,
+	body.ss-chrome .main-header-v2 .main-nav ul {
+		display: flex !important;
+		flex-direction: column !important;
+		align-items: stretch !important;
+		gap: 0.15rem !important;
+		margin: 0 !important;
+		padding: 0 !important;
+		list-style: none !important;
+		width: 100% !important;
+	}
+	body.ss-chrome .main-header .main-nav > ul > li,
+	body.ss-chrome .main-header-v2 .main-nav > ul > li {
+		margin: 0 !important;
+		width: 100% !important;
+	}
+	body.ss-chrome .main-header .main-nav a,
+	body.ss-chrome .main-header-v2 .main-nav a {
+		display: flex !important;
+		align-items: center !important;
+		justify-content: space-between !important;
+		width: 100% !important;
+		padding: 0.85rem 0.95rem !important;
+		border-radius: 10px !important;
+		color: #1f2430 !important;
+		font-size: 0.95rem !important;
+		font-weight: 650 !important;
+		text-decoration: none !important;
+		box-sizing: border-box !important;
+	}
+	body.ss-chrome .main-header .main-nav a:hover,
+	body.ss-chrome .main-header .main-nav a:active,
+	body.ss-chrome .main-header-v2 .main-nav a:hover,
+	body.ss-chrome .main-header-v2 .main-nav a:active {
+		background: #f3ecff !important;
+		color: #6b3bb8 !important;
+	}
+	body.ss-chrome .main-header .main-nav .submenu,
+	body.ss-chrome .main-header-v2 .main-nav .submenu {
+		position: static !important;
+		transform: none !important;
+		left: auto !important;
+		top: auto !important;
+		opacity: 1 !important;
+		visibility: visible !important;
+		display: none !important;
+		min-width: 0 !important;
+		width: 100% !important;
+		margin: 0.15rem 0 0.35rem !important;
+		padding: 0.15rem 0 0.15rem 0.65rem !important;
+		border: 0 !important;
+		box-shadow: none !important;
+		background: #f7f5fb !important;
+		border-radius: 10px !important;
+	}
+	body.ss-chrome .main-header .main-nav .submenu.open,
+	body.ss-chrome .main-header-v2 .main-nav .submenu.open {
+		display: flex !important;
+		flex-direction: column !important;
+	}
+	body.ss-chrome .main-header .main-nav .submenu a,
+	body.ss-chrome .main-header-v2 .main-nav .submenu a {
+		font-size: 0.88rem !important;
+		font-weight: 550 !important;
+		padding: 0.7rem 0.9rem !important;
+		color: #4b5563 !important;
+	}
+}
+
+@media (max-width: 400px) {
+	body.ss-chrome .main-header,
+	body.ss-chrome .main-header-v2 {
+		padding: 0.5rem 0.75rem !important;
+	}
+	body.ss-chrome .main-header .header-container,
+	body.ss-chrome .main-header-v2 .header-container {
+		gap: 0.35rem !important;
+	}
+	body.ss-chrome .main-header .logo,
+	body.ss-chrome .main-header-v2 .logo {
+		font-size: 0 !important;
+		max-width: 40px !important;
+		flex: 0 0 40px !important;
+	}
+	body.ss-chrome .main-header .logo .logo-icon-wrapper,
+	body.ss-chrome .main-header-v2 .logo .logo-icon-wrapper {
+		margin-right: 0 !important;
+		width: 40px !important;
+		height: 40px !important;
+	}
+	body.ss-chrome .main-header .menu-toggle,
+	body.ss-chrome .main-header-v2 .menu-toggle,
+	body.ss-chrome .main-header button.menu-toggle,
+	body.ss-chrome .main-header-v2 button.menu-toggle,
+	body.ss-chrome .main-header .header-actions .icon-btn,
+	body.ss-chrome .main-header-v2 .header-actions .icon-btn {
+		flex-basis: 40px !important;
+		width: 40px !important;
+		height: 40px !important;
+		min-width: 40px !important;
+		min-height: 40px !important;
+		max-width: 40px !important;
+		max-height: 40px !important;
+	}
+}
+
+body.admin-bar.ss-chrome .main-header,
+body.admin-bar.ss-chrome .main-header-v2 {
+	top: 32px !important;
+}
+
+@media (max-width: 782px) {
+	body.admin-bar.ss-chrome .main-header,
+	body.admin-bar.ss-chrome .main-header-v2 {
+		top: 46px !important;
+	}
+}
+
+/* Shell de contenido compartido (usar en PDP/FAQ) */
+body.ss-chrome .ss-footer__shell,
+body.ss-chrome .ss-content-shell,
+body.ss-chrome .ss-pdp__container,
+body.ss-chrome .ss-faq-list-wrap,
+body.ss-chrome .ss-faq-support,
+body.ss-chrome .ss-faq-trust,
+body.ss-chrome .ss-home__shell,
+body.ss-chrome .ss-contact__shell {
+	max-width: var(--ss-content-max) !important;
+	width: 100% !important;
+	margin-left: auto !important;
+	margin-right: auto !important;
+	padding-left: var(--ss-content-gutter) !important;
+	padding-right: var(--ss-content-gutter) !important;
+	box-sizing: border-box !important;
+}

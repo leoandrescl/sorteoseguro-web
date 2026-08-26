@@ -1,0 +1,147 @@
+
+/* WooCommerce login */
+.ss-auth-card__form--wc .woocommerce > h2,
+.ss-auth-card__form--wc .woocommerce-form-login > p:not(.form-row):not(.lost_password) {
+	display: none !important;
+}
+.ss-auth-card__form--wc .woocommerce,
+.ss-auth-card__form--wc .u-columns,
+.ss-auth-card__form--wc .u-column1,
+.ss-auth-card__form--wc .u-column2 {
+	width: 100% !important;
+	max-width: none !important;
+	float: none !important;
+	padding: 0 !important;
+	margin: 0 !important;
+}
+.ss-auth-card__form--wc .u-column2,
+.ss-auth-card__form--wc .woocommerce-form-register,
+.ss-auth-card__form--wc h2:not(.screen-reader-text) {
+	display: none !important;
+}
+.ss-auth-card__form--wc .woocommerce-form-login {
+	margin: 0 !important;
+	padding: 0 !important;
+	border: 0 !important;
+	text-align: left;
+}
+.ss-auth-card__form--wc .woocommerce-form-login > h2,
+.ss-auth-card__form--wc .woocommerce-form-login > p:first-of-type:not(.form-row) {
+	display: none !important;
+}
+.ss-auth-card__form--wc .woocommerce-form-login .form-row {
+	margin-bottom: 0.85rem !important;
+}
+.ss-auth-card__form--wc .woocommerce-form-login .form-row label .required,
+.ss-auth-card__form--wc .woocommerce-form-login .form-row label .screen-reader-text {
+	display: none !important;
+}
+.ss-auth-card__form--wc .woocommerce-form-login .form-row label:not(.woocommerce-form__label-for-checkbox):not(.ss-auth-float-label) {
+	position: absolute !important;
+	width: 1px !important;
+	height: 1px !important;
+	overflow: hidden !important;
+	clip: rect(0, 0, 0, 0) !important;
+}
+.ss-auth-card__form--wc .woocommerce-form-login .form-row.ss-auth-field.is-float label.ss-auth-float-label {
+	position: absolute !important;
+	left: 0.85rem !important;
+	top: 0 !important;
+	transform: translateY(-50%) !important;
+	width: auto !important;
+	height: auto !important;
+	overflow: visible !important;
+	clip: auto !important;
+	margin: 0 !important;
+	padding: 0 0.35rem !important;
+	background: #fff !important;
+	font-size: 0.78rem !important;
+	font-weight: 650 !important;
+	line-height: 1 !important;
+	color: var(--ss-auth-muted, #6b7280) !important;
+	z-index: 2 !important;
+	pointer-events: none !important;
+}
+.ss-auth-card__form--wc .woocommerce-form-login .form-row.ss-auth-field.is-float:focus-within label.ss-auth-float-label,
+.ss-auth-card__form--wc .woocommerce-form-login .form-row.ss-auth-field.is-float:has(input:not(:placeholder-shown)) label.ss-auth-float-label {
+	color: var(--ss-auth-purple, #6b3bb8) !important;
+}
+.ss-auth-card__form--wc .woocommerce-form-login .password-input {
+	display: block;
+	width: 100%;
+	position: relative;
+}
+.ss-auth-card__form--wc .woocommerce-form-login .show-password-input {
+	display: none !important;
+}
+.ss-auth-card__form--wc .woocommerce-form-login .form-row-wide {
+	width: 100% !important;
+}
+.ss-auth-card__form--wc .woocommerce-form-login .woocommerce-form__label-for-checkbox {
+	display: inline-flex !important;
+	align-items: center;
+	gap: 0.45rem;
+	margin: 0.35rem 0 0.95rem !important;
+	font-size: 0.86rem !important;
+	font-weight: 600 !important;
+	color: var(--ss-auth-muted) !important;
+	position: static !important;
+	width: auto !important;
+	height: auto !important;
+	overflow: visible !important;
+	clip: auto !important;
+}
+.ss-auth-card__form--wc .woocommerce-form-login input[type="checkbox"] {
+	width: 16px !important;
+	height: 16px !important;
+	accent-color: var(--ss-auth-purple) !important;
+}
+.ss-auth-card__form--wc .woocommerce-form-login__submit,
+.ss-auth .um-button,
+.ss-auth input.um-button,
+.ss-auth .woocommerce-Button.button {
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	width: 100% !important;
+	min-height: 48px !important;
+	padding: 0.82rem 1.25rem !important;
+	margin: 0.15rem 0 0 !important;
+	border: 0 !important;
+	border-radius: var(--ss-auth-radius-ui) !important;
+	background: var(--ss-auth-purple) !important;
+	background-color: var(--ss-auth-purple) !important;
+	color: #fff !important;
+	font-size: 0.95rem !important;
+	font-weight: 800 !important;
+	text-transform: none !important;
+	letter-spacing: 0 !important;
+	box-shadow: 0 8px 18px rgba(107, 59, 184, 0.22) !important;
+	cursor: pointer !important;
+}
+.ss-auth-card__form--wc .woocommerce-form-login__submit:hover,
+.ss-auth-card__form--wc .woocommerce-form-login__submit:focus,
+.ss-auth .um-button:hover,
+.ss-auth .um-button:focus,
+.ss-auth input.um-button:hover,
+.ss-auth input.um-button:focus,
+.ss-auth .woocommerce-Button.button:hover,
+.ss-auth .woocommerce-Button.button:focus {
+	background: var(--ss-auth-purple-dark) !important;
+	background-color: var(--ss-auth-purple-dark) !important;
+	color: #fff !important;
+}
+.ss-auth-card__form--wc .lost_password {
+	margin: 0.85rem 0 0 !important;
+	text-align: center;
+	font-size: 0.84rem !important;
+}
+.ss-auth-card__form--wc .lost_password a {
+	color: var(--ss-auth-purple) !important;
+	font-weight: 700 !important;
+	text-decoration: none !important;
+}
+.ss-auth-card__form--wc .lost_password a:hover,
+.ss-auth-card__form--wc .lost_password a:focus {
+	color: var(--ss-auth-purple-dark) !important;
+}

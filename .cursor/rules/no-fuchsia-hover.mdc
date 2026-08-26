@@ -1,0 +1,29 @@
+---
+description: PROHIBIDO hover/focus/active fucsia — siempre morado de marca
+alwaysApply: true
+---
+
+# Cero hover fucsia (hard rule)
+
+**NUNCA** usar fucsia/rosado/magenta en hover, focus, active, selected u open.
+
+## Colores prohibidos (estados UI)
+
+- `#e91e8c`, `#cc3366`, `#b03a5e`, hotpink, magenta, y cualquier rosa/fucsia similar
+- Incluye el `button:hover` global del theme/Customizer (`background-color: #cc3366` / `rgb(204, 51, 102)`)
+
+## Qué usar
+
+- Morado `#6b3bb8` / dark `#552c9a` / soft `#f3ecff` / `#efebfa`
+- Sobre fondo morado: texto e iconos **blancos**
+
+## Obligatorio al codear
+
+1. Si hay un `<button>` custom, **pisar** el hover del theme con selectores específicos + `!important` (bg/color/border).
+2. No dejar botones full-bleed transparentes: el theme les pinta fucsia al hover.
+3. Si aparece fucsia en una superficie: arreglarlo en el **mu-plugin de esa superficie**, no “dejarlo”.
+4. Excepción única de marca: acento DigiPack **3x2** (`#e91e8c`) solo en card/badge de pack 3x2 — **nunca** como hover de controles.
+
+## Checklist mental
+
+Antes de cerrar UI: pasar el mouse por botones, tabs, filtros, acordeones, play, toggles. Si algo se pone rosado → **bug, no ship**.

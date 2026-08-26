@@ -1,0 +1,50 @@
+---
+description: Estándares visuales Sorteo Seguro — chrome, 1400px, tokens, no inventar diseño
+alwaysApply: true
+---
+
+# UI estandarizada (Sorteo Seguro)
+
+Antes de codear UI: abrir el screenshot/diseño en `screenshots con informacion util para mejoras/` (o el ss2 del usuario). Implementar eso. No “mejorar” ni inventar copy/layout.
+
+## Reutilizar, no reinventar
+
+- Header/footer/fuentes: `sorteoseguro-chrome` (`body.ss-chrome`). No duplicar header por página.
+- Superficies: `sorteoseguro-home`, `sorteoseguro-pdp`, `sorteoseguro-faq`, `sorteoseguro-quienes`, `sorteoseguro-cookies`.
+- Packs/Lottery: `sorteoseguro-packs-lottery.php`. No editar `lottery-for-woocommerce`.
+- Shell: `max-width: var(--ss-content-max, 1400px)` + `var(--ss-content-gutter)`. Excepción home: una sección ~1100px si el diseño lo pide.
+- Tipografía: ver rule `typography.mdc` (Montserrat/Poppins).
+
+## Tokens (no hardcodear otros)
+
+Morado `#6b3bb8` (`--ss-home-purple`) / dark `#552c9a` / soft `#f3ecff`. Texto `#1f2430`, muted `#6b7280`, línea `#e6e8ef`.
+
+### Border radius
+
+- Cards/paneles grandes: `14px` (`--ss-home-radius`).
+- Controles UI (inputs, search, botones, FAQ items/`article`, chips de UI): **siempre** `var(--ss-home-radius-ui)` (= `8px`).
+- **Prohibido** pastillas (`999px`, `9999px`, `50px+` en barras/inputs/acordeones).
+
+### Color de estado (activo / seleccionado / abierto)
+
+- **NUNCA** rosado/fucsia en hover, focus, active, selected u open. Ver rule `no-fuchsia-hover.mdc` (hard rule).
+- Prohibidos: `#e91e8c`, `#cc3366`, `#b03a5e`, hotpink, magenta, `rgb(204, 51, 102)`.
+- Aplica a **todo** control UI: botones (incl. play/fullscreen custom), acordeones, FAQ filters/tabs, links de nav, toggles de checkout, chips, etc.
+- Usar **morado** `#6b3bb8` (o dark `#552c9a` / soft `#f3ecff` / `#efebfa`).
+- Sobre fondo morado: texto e iconos/flechas **blancos** (`#fff`).
+- Excepción única de marca: acento DigiPack **3x2** (`#e91e8c`) en la card de packs y en la línea de descuento “PROMO - PACK 3x2” del resumen; **no** reutilizar ese fucsia fuera de packs ni como hover.
+- Si Custom CSS & JS / Elementor / theme reintroduce fucsia en `button:hover`: **pisarlo** en el mu-plugin de la superficie con `!important` (no “arreglar” a ojo dejando el fucsia).
+
+Packs: 3x2 fucsia `#e91e8c`; 5x3 morado `#9b7ede` + badge “Pack más elegido”; 10x5 dorado `#c9a227`; 20x8 negro `#141414` + “Pack más conveniente”. Banner packs home: `#1a1255` sólido.
+
+## Media y cards
+
+La **imagen se adapta al contenedor**, nunca al revés. Alto de cards/premios uniforme en la fila. Si empeora vs el diseño: revertir al estado previo, no reinterpretar.
+
+## Hero Home v2
+
+**PROHIBIDO** slides de distinto alto. Los 5 banners del hero tienen **el mismo alto en todas las resoluciones**. Grid + `visibility` (no `display: none`). Ver rule `home-hero.mdc`.
+
+## Copy
+
+Siempre **DigiTicket** / **DigiTickets** (nunca “ticket” / “tickets” solos). Ver rule `digiticket-copy.mdc`. Reusar textos existentes del sitio.

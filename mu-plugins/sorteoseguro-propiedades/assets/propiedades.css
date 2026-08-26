@@ -1,0 +1,154 @@
+/* Sorteo Seguro – Propiedades */
+body.ss-realty-template #content,
+body.ss-realty-template .site-content,
+body.ss-realty-template .content-area,
+body.ss-realty-template .site-main,
+body.ss-realty-template article.page {
+	max-width: none !important;
+	width: 100% !important;
+	padding-left: 0 !important;
+	padding-right: 0 !important;
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+}
+
+.ss-realty-how,
+.ss-realty-how *,
+.ss-realty-contests,
+.ss-realty-contests * {
+	font-family: var(--ss-font-family, "Montserrat", "Poppins", "Segoe UI", sans-serif) !important;
+}
+
+/* Cómo participar */
+.ss-realty-how {
+	padding: var(--ss-home-section-y, 2.5rem) 0;
+	background: #fff;
+}
+.ss-realty-how__head {
+	text-align: center;
+	max-width: 52rem;
+	margin: 0 auto 1.85rem;
+}
+.ss-realty-how__tagline {
+	margin: 0 0 0.55rem;
+	color: var(--ss-home-purple, #6b3bb8);
+	font-size: 0.78rem;
+	font-weight: 800;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+.ss-realty-how__title {
+	margin: 0;
+	font-size: clamp(1.15rem, 2.2vw, 1.55rem);
+	font-weight: 800;
+	line-height: 1.35;
+	color: #1a1f3c;
+}
+.ss-realty-how__grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 1rem;
+	align-items: stretch;
+}
+.ss-realty-how__step {
+	background: #fff;
+	border: 1px solid var(--ss-home-line, #e6e8ef);
+	border-radius: var(--ss-home-radius, 14px);
+	box-shadow: var(--ss-home-shadow, 0 10px 28px rgba(24, 18, 48, 0.07));
+	padding: 1.25rem 1.15rem 1.35rem;
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+.ss-realty-how__num {
+	margin: 0 0 0.55rem;
+	color: var(--ss-home-purple, #6b3bb8);
+	font-size: 0.72rem;
+	font-weight: 800;
+	letter-spacing: 0.08em;
+}
+.ss-realty-how__step h3 {
+	margin: 0 0 0.7rem;
+	font-size: 1.02rem;
+	font-weight: 800;
+	line-height: 1.3;
+	color: #1a1f3c;
+}
+.ss-realty-how__step p {
+	margin: 0;
+	color: var(--ss-home-muted, #6b7280);
+	font-size: 0.9rem;
+	line-height: 1.55;
+}
+.ss-realty-how__cta {
+	display: flex;
+	justify-content: center;
+	margin-top: 1.6rem;
+}
+
+/* PROPIEDADES ACTIVAS: 4 columnas fijas, sin carousel */
+.ss-realty-contests .ss-home-contests__titles h2 {
+	letter-spacing: 0.02em;
+}
+.ss-realty-contests__grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 1rem;
+	align-items: stretch;
+}
+.ss-realty-contests__grid .ss-home-contest {
+	flex: none !important;
+	width: 100%;
+	max-width: none;
+	min-width: 0;
+	height: 100%;
+}
+.ss-home-contest.is-soon {
+	box-shadow: 0 8px 24px rgba(24, 18, 48, 0.04);
+}
+.ss-home-contest.is-soon:hover {
+	transform: none;
+	box-shadow: 0 8px 24px rgba(24, 18, 48, 0.04);
+}
+.ss-home-contest.is-soon .ss-home-contest__badge {
+	background: #6b7280;
+}
+.ss-home-contest.is-soon .ss-home-contest__ph {
+	background: linear-gradient(135deg, #ece8f6, #d4c8ea);
+}
+.ss-home-contest.is-soon .ss-home-contest__title {
+	color: #6b7280;
+}
+.ss-home-contest.is-soon .ss-home-contest__btn {
+	background: #e6e8ef;
+	color: #6b7280;
+	pointer-events: none;
+}
+.ss-home-contest.is-soon .ss-home-contest__btn:hover {
+	background: #e6e8ef;
+	color: #6b7280;
+}
+.ss-home-contest.is-soon .ss-home-contest__price {
+	visibility: hidden;
+}
+
+@media (max-width: 1100px) {
+	.ss-realty-contests__grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (max-width: 900px) {
+	.ss-realty-how__grid {
+		grid-template-columns: 1fr;
+	}
+}
+
+@media (max-width: 760px) {
+	.ss-realty-contests__grid {
+		grid-template-columns: 1fr;
+	}
+	.ss-realty-how__title br {
+		display: none;
+	}
+}

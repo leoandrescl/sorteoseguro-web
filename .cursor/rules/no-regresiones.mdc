@@ -1,0 +1,55 @@
+---
+description: No regresiones — criterio obligatorio al cambiar UI, pagos, packs, checkout.
+alwaysApply: true
+---
+
+# No regresiones (hard rule)
+
+Mejorar o arreglar **A** no puede romper **B** que ya funcionaba. Criterio y sentido común: DigiPacks + Mercado Pago son el núcleo de ventas; guest checkout, thank-you, números Lottery y first paint también.
+
+## Antes de tocar código
+
+1. ¿Qué flujo de dinero o conversión puede verse afectado? (checkout, MP, TUU, packs, guest, thank-you, auto-complete).
+2. Si el cambio no es de pagos, **igual** verificar que packs + MP no se pasen a llevar (smoke mental o prueba real).
+3. Una fase por vez. Probar lo tocado **y** lo adyacente obvio.
+4. Si empeora: **revertir al backup** de esa fase; no “arreglar encima” acumulando parches a ciegas.
+
+## Checklist anti-regresión (pagos / conversión)
+
+Tras cualquier cambio en checkout, mu-plugins de pago, promo/packs, auth/guest, thank-you o MP:
+
+- [ ] **DigiPack + Mercado Pago**: preferencia se crea y redirige (sin “Tu pago fue rechazado porque hubo un error”).
+- [ ] **1 DigiTicket sin pack + MP**: sigue funcionando.
+- [ ] **Guest checkout**: form completo, sin FOUC de iconos, puede pagar.
+- [ ] **Logueado**: puede pagar.
+- [ ] Pedido aprobado MP → **Completado** (auto-complete / IPN; no depender solo de thank-you).
+- [ ] Cupón acordeón en checkout.
+- [ ] Radios/logos MP y TUU sin hover fucsia.
+
+## Inventario de arreglos que NO se pueden volver a romper
+
+| Área | Qué quedó resuelto | Dónde / no tocar a la ligera |
+|------|--------------------|------------------------------|
+| DigiPack + MP | Fees negativos del Promo Engine no pueden ir a la preferencia MP (`unit_price` &lt; 0). Absorber en precio neto del ítem. | `sorteoseguro-mp-pack-preference.php` — **no borrar** sin reemplazo equivalente |
+| MP → Completado | Pago aprobado fuerza Completado con reintentos/cron | `sorteoseguro-mp-auto-complete.php` |
+| Guest checkout | Invitados pueden comprar; sin gate que oculte el form; Lottery no fuerza registro | `sorteoseguro-checkout` + filtros registration |
+| Checkout default pago | Al cargar checkout, **Mercado Pago** preseleccionado (no TUU por sesión) | `SorteoSeguro_Checkout::force_default_payment_method` |
+| Guest → Mi cuenta | Pedidos guest se vinculan al user por email | `sorteoseguro-guest-order-link.php` |
+| Checkout FOUC | CSS completo en `wp_head` prio 3 | rule `critical-css-head.mdc` |
+| Cupones checkout | Click document-level + `.is-open { display:block !important }` | `checkout.js` / `checkout.css` |
+| Hover fucsia | Nunca rosado en estados UI | rule `no-fuchsia-hover.mdc` |
+| Hero home | Mismo alto en todos los slides | rule `home-hero.mdc` |
+| Copy | DigiTicket(s), nunca “ticket(s)” solos | rule `digiticket-copy.mdc` |
+| Checkout page | No dejar que TUU reemplace `/finalizar-compra/` | `sorteoseguro-tuu-guard.php` |
+| Lottery core | No editar `lottery-for-woocommerce` | rule `produccion.mdc` |
+
+## Por qué existe `sorteoseguro-mp-pack-preference`
+
+No es un “rediseño que inventó el bug”. Durante meses Woo + Promo Engine mandaron fees negativos y la API de MP los aceptaba. El **2026-08-20 ~10:09 CL** la API empezó a responder `Invalid request parameters` a esas preferencias (packs OK hasta la noche del 19, ej. pedido **#76019**). El plugin oficial de MP no tiene filtro limpio; **no editamos** `woocommerce-mercadopago` (se pisa en updates). El mu-plugin solo adapta el payload al crear la preferencia; el carrito/pedido en BD siguen con el fee `[PROMO]` como siempre.
+
+## Criterio al elegir solución
+
+- Preferir el cambio **mínimo** que restaura lo que ya vendía.
+- No meter lógica de pagos dentro de UI/rediseño.
+- No desactivar mu-plugins de pago “para probar” un CSS.
+- Ante duda: probar **pack + MP** en incógnito antes de dar por cerrado.
