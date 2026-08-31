@@ -1,4 +1,7 @@
 (function () {
+	if (window.__ssPdpReady) return;
+	window.__ssPdpReady = true;
+
 	function ready(fn) {
 		if (document.readyState !== 'loading') fn();
 		else document.addEventListener('DOMContentLoaded', fn);
@@ -23,6 +26,7 @@
 		var index = 0;
 		var hasVideo = !!(video || iframe);
 		var mode = (stage && stage.getAttribute('data-mode')) || (hasVideo ? 'video' : 'image');
+		var videoWrap = root.querySelector('.ss-pdp-media__video-wrap');
 
 		function setActiveThumb(i) {
 			thumbs.forEach(function (t, n) {
@@ -49,6 +53,40 @@
 			image.src = src;
 		}
 
+		function intendedIframeSrc() {
+			if (!iframe) return '';
+			return iframe.getAttribute('data-ss-src')
+				|| iframe.getAttribute('data-src-cmplz')
+				|| iframe.getAttribute('data-cmplz-src')
+				|| iframe.getAttribute('data-src')
+				|| '';
+		}
+
+		function iframeSrcLooksReady(src) {
+			return !!src && src !== 'about:blank' && src.indexOf('youtube') !== -1;
+		}
+
+		function ensureIframeSrc() {
+			if (!iframe) return;
+			var current = iframe.getAttribute('src') || '';
+			if (iframeSrcLooksReady(current)) {
+				if (!iframe.getAttribute('data-ss-src')) {
+					iframe.setAttribute('data-ss-src', current);
+				}
+				return;
+			}
+			var intended = intendedIframeSrc();
+			if (intended) {
+				iframe.classList.remove('cmplz-hidden', 'cmplz-placeholder');
+				iframe.setAttribute('src', intended);
+			}
+		}
+
+		function markVideoReady() {
+			if (videoWrap) videoWrap.classList.add('is-ready');
+			if (stage) stage.classList.add('is-video-ready');
+		}
+
 		function ytCommand(fn) {
 			if (!iframe || !iframe.contentWindow) return;
 			iframe.contentWindow.postMessage(JSON.stringify({
@@ -66,10 +104,44 @@
 		}
 
 		function playMedia() {
+			ensureIframeSrc();
 			if (video) {
-				try { video.play(); } catch (e) {}
+				try {
+					video.setAttribute('playsinline', '');
+					video.setAttribute('webkit-playsinline', '');
+					var playPromise = video.play();
+					if (playPromise && typeof playPromise.catch === 'function') {
+						playPromise.catch(function () {});
+					}
+				} catch (e) {}
 			}
 			ytCommand('playVideo');
+		}
+
+		if (iframe) {
+			ensureIframeSrc();
+			iframe.addEventListener('load', function () {
+				var src = iframe.getAttribute('src') || '';
+				if (src && src !== 'about:blank') markVideoReady();
+			});
+			if (typeof MutationObserver !== 'undefined') {
+				new MutationObserver(function () {
+					ensureIframeSrc();
+				}).observe(iframe, { attributes: true, attributeFilter: ['src', 'data-src-cmplz', 'data-cmplz-src'] });
+			}
+			setTimeout(ensureIframeSrc, 250);
+			setTimeout(ensureIframeSrc, 1200);
+			document.addEventListener('cmplz_enable_category', ensureIframeSrc);
+			document.addEventListener('cmplz_fire_categories', ensureIframeSrc);
+		}
+
+		if (video) {
+			video.setAttribute('playsinline', '');
+			video.setAttribute('webkit-playsinline', '');
+			var onVideoReady = function () { markVideoReady(); };
+			video.addEventListener('loadeddata', onVideoReady);
+			video.addEventListener('canplay', onVideoReady);
+			try { video.load(); } catch (e) {}
 		}
 
 		function showImage(i) {

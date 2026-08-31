@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_PDP_Templates {
 
-	const VERSION = '1.0.34';
+	const VERSION = '1.0.36';
 	const META_YOUTUBE = '_ss_pdp_youtube_url';
 	const META_FILE    = '_ss_pdp_video_file';
 
@@ -30,6 +30,9 @@ final class SorteoSeguro_PDP_Templates {
 		add_filter('body_class', [__CLASS__, 'body_class']);
 		add_filter('ss_chrome_enabled', [__CLASS__, 'enable_chrome']);
 		add_action('wp_enqueue_scripts', [__CLASS__, 'assets'], 50);
+		add_action('wp_head', [__CLASS__, 'print_critical_css'], 3);
+		add_action('wp_footer', [__CLASS__, 'print_js'], 20);
+		add_filter('cmplz_whitelisted_script_tags', [__CLASS__, 'cmplz_whitelist_video']);
 		add_action('add_meta_boxes', [__CLASS__, 'register_video_metabox']);
 		add_action('save_post_product', [__CLASS__, 'save_video_metabox'], 20, 2);
 		add_action('admin_enqueue_scripts', [__CLASS__, 'admin_assets']);
@@ -115,6 +118,50 @@ final class SorteoSeguro_PDP_Templates {
 		if (is_readable($dir . '/pdp.js')) {
 			wp_enqueue_script('ss-pdp', $base . '/pdp.js', [], $ver, true);
 		}
+	}
+
+	public static function print_critical_css(): void {
+		if (!self::current_template_product_id()) {
+			return;
+		}
+		$path = WP_CONTENT_DIR . '/mu-plugins/sorteoseguro-pdp/assets/pdp.css';
+		if (!is_readable($path)) {
+			return;
+		}
+		$css = file_get_contents($path);
+		if ($css === false || $css === '') {
+			return;
+		}
+		echo "\n<!-- ss-pdp critical v" . esc_html(self::VERSION) . " -->\n";
+		echo '<style id="ss-pdp-critical" data-no-optimize="1">' . $css . "</style>\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	}
+
+	public static function print_js(): void {
+		if (!self::current_template_product_id()) {
+			return;
+		}
+		$path = WP_CONTENT_DIR . '/mu-plugins/sorteoseguro-pdp/assets/pdp.js';
+		if (!is_readable($path)) {
+			return;
+		}
+		$js = file_get_contents($path);
+		if ($js === false || $js === '') {
+			return;
+		}
+		echo "\n<script id=\"ss-pdp-js\" data-no-optimize=\"1\" data-no-defer=\"1\">\n" . $js . "\n</script>\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	}
+
+	/**
+	 * Complianz vacía iframes de YouTube en la primera visita. El video de la ficha
+	 * es contenido propio, no un embed de marketing: no debe esperar consentimiento.
+	 *
+	 * @param array<int, string> $tags
+	 * @return array<int, string>
+	 */
+	public static function cmplz_whitelist_video(array $tags): array {
+		$tags[] = 'ss-pdp-media__iframe';
+		$tags[] = 'ss-pdp-media__video';
+		return $tags;
 	}
 
 	public static function admin_assets(string $hook): void {
@@ -230,10 +277,12 @@ final class SorteoSeguro_PDP_Templates {
 		];
 		$yt_id = self::youtube_id((string) get_post_meta($product_id, self::META_YOUTUBE, true));
 		if ($yt_id !== '') {
+			$origin = rawurlencode(home_url('/'));
 			return [
 				'type'       => 'youtube',
 				'youtube_id' => $yt_id,
-				'embed_url'  => 'https://www.youtube.com/embed/' . rawurlencode($yt_id) . '?rel=0&modestbranding=1&playsinline=1&enablejsapi=1',
+				'embed_url'  => 'https://www.youtube-nocookie.com/embed/' . rawurlencode($yt_id)
+					. '?rel=0&modestbranding=1&playsinline=1&enablejsapi=1&origin=' . $origin,
 				'file_url'   => '',
 			];
 		}
