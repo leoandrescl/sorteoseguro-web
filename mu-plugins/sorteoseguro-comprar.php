@@ -1,9 +1,9 @@
 <?php
 /**
  * Plugin Name: Sorteo Seguro – Compra directa
- * Description: Página /comprar/{slug}/ con packs + checkout embebido. Aislada de la ficha PDP y del checkout standalone.
+ * Description: Página /comprar/{slug}/ con packs + checkout embebido.
  * Author: Sorteo Seguro
- * Version: 1.0.0
+ * Version: 1.0.24
  *
  * Rollback: borrar este archivo y la carpeta sorteoseguro-comprar/ (+ páginas bajo /comprar/ en WP si se desea).
  */
@@ -13,23 +13,30 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Comprar {
 
-	const VERSION        = '1.0.22';
+	const VERSION        = '1.0.24';
 	const DIR            = __DIR__ . '/sorteoseguro-comprar';
 	const PARENT_SLUG    = 'comprar';
 	const META_PRODUCT   = '_ss_comprar_product_id';
 	const OPTION_SEEDED  = 'ss_comprar_pages_seeded_v1';
+	const OPTION_SEEDED_V3 = 'ss_comprar_pages_seeded_v3';
 
-	/** slug => product_id (sorteos con ficha PDP piloto). */
+	/** slug hijo bajo /comprar/ => product_id */
 	private static array $product_slugs = [
-		'yamaha-fz25'       => 874,
-		'vista-mar-dunares' => 1091,
-		'jeep-avenger'      => 45941,
-		'peugeot-208'       => 53210,
-		'parcela-choros'    => 49102,
+		'sorteo-vista-mar-dunares' => 1091,
+		'parcela'                  => 49102,
+		'jeep-avenger'             => 45941,
+		'peugeot-208'              => 53210,
+	];
+
+	/** slug legado => slug nuevo (misma ruta /comprar/) */
+	private static array $legacy_child_slugs = [
+		'vista-mar-dunares' => 'sorteo-vista-mar-dunares',
+		'parcela-choros'    => 'parcela',
 	];
 
 	public static function init(): void {
 		add_action('init', [__CLASS__, 'maybe_seed_pages'], 30);
+		add_action('template_redirect', [__CLASS__, 'redirect_legacy_comprar_urls'], 0);
 		add_filter('template_include', [__CLASS__, 'template_include'], 99998);
 		add_filter('get_post_metadata', [__CLASS__, 'disable_elementor_builder'], 10, 4);
 		add_filter('ss_chrome_enabled', [__CLASS__, 'enable_chrome']);
@@ -99,6 +106,36 @@ final class SorteoSeguro_Comprar {
 		return (bool) preg_match('#/' . preg_quote(self::PARENT_SLUG, '#') . '/[^/]+/?$#', untrailingslashit($path) . '/');
 	}
 
+	public static function redirect_legacy_comprar_urls(): void {
+		if (is_admin()) {
+			return;
+		}
+		$request_uri = isset($_SERVER['REQUEST_URI']) ? (string) wp_unslash($_SERVER['REQUEST_URI']) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$path        = wp_parse_url($request_uri, PHP_URL_PATH);
+		if (!is_string($path) || $path === '') {
+			return;
+		}
+		$path = '/' . trim($path, '/') . '/';
+		if (!preg_match('#^/' . preg_quote(self::PARENT_SLUG, '#') . '/([^/]+)/$#', $path, $matches)) {
+			return;
+		}
+		$old_slug = (string) $matches[1];
+		if (!isset(self::$legacy_child_slugs[ $old_slug ])) {
+			return;
+		}
+		$target_slug = self::$legacy_child_slugs[ $old_slug ];
+		if ($target_slug === $old_slug || !isset(self::$product_slugs[ $target_slug ])) {
+			return;
+		}
+		$target = home_url('/' . self::PARENT_SLUG . '/' . $target_slug . '/');
+		$query  = wp_parse_url($request_uri, PHP_URL_QUERY);
+		if (is_string($query) && $query !== '') {
+			$target = $target . (strpos($target, '?') === false ? '?' : '&') . $query;
+		}
+		wp_safe_redirect($target, 301);
+		exit;
+	}
+
 	public static function is_embedded_context(): bool {
 		return self::is_comprar_child() || self::referer_is_comprar_child();
 	}
@@ -154,16 +191,24 @@ final class SorteoSeguro_Comprar {
 			$path = SorteoSeguro_PDP_Templates::template_path($product_id);
 		}
 		if ($path === '') {
-			foreach (self::$product_slugs as $slug => $pid) {
-				if ((int) $pid !== (int) $product_id) {
-					continue;
-				}
-				$candidate = WP_CONTENT_DIR . '/mu-plugins/sorteoseguro-pdp/' . $slug . '.php';
+		foreach (self::$product_slugs as $slug => $pid) {
+			if ((int) $pid !== (int) $product_id) {
+				continue;
+			}
+			$candidates = [
+				WP_CONTENT_DIR . '/mu-plugins/sorteoseguro-pdp/' . $slug . '.php',
+			];
+			$legacy = array_search($slug, self::$legacy_child_slugs, true);
+			if (is_string($legacy) && $legacy !== '') {
+				$candidates[] = WP_CONTENT_DIR . '/mu-plugins/sorteoseguro-pdp/' . $legacy . '.php';
+			}
+			foreach ($candidates as $candidate) {
 				if (is_readable($candidate)) {
 					$path = $candidate;
+					break 2;
 				}
-				break;
 			}
+		}
 		}
 		if ($path === '' || !is_readable($path)) {
 			return [];
@@ -582,6 +627,111 @@ final class SorteoSeguro_Comprar {
 	}
 
 	public static function maybe_seed_pages(): void {
+		$parent_id = self::ensure_parent_page();
+		if ($parent_id <= 0) {
+			return;
+		}
+		if (get_option(self::OPTION_SEEDED_V3) === 'yes') {
+			return;
+		}
+		if (!function_exists('wp_insert_post')) {
+			return;
+		}
+
+		self::cleanup_mistaken_root_pages($parent_id);
+		self::migrate_legacy_child_slugs($parent_id);
+
+		foreach (self::$product_slugs as $slug => $product_id) {
+			self::ensure_child_comprar_page($parent_id, $slug, (int) $product_id);
+		}
+
+		update_option(self::OPTION_SEEDED_V3, 'yes', false);
+	}
+
+	private static function ensure_parent_page(): int {
+		if (get_option(self::OPTION_SEEDED) !== 'yes') {
+			self::maybe_seed_parent_index();
+		}
+		$parent = get_page_by_path(self::PARENT_SLUG);
+		return $parent instanceof WP_Post ? (int) $parent->ID : 0;
+	}
+
+	private static function migrate_legacy_child_slugs(int $parent_id): void {
+		foreach (self::$legacy_child_slugs as $old_slug => $new_slug) {
+			if ($old_slug === $new_slug) {
+				continue;
+			}
+			$product_id = (int) (self::$product_slugs[ $new_slug ] ?? 0);
+			if ($product_id <= 0) {
+				continue;
+			}
+			$old_path = self::PARENT_SLUG . '/' . $old_slug;
+			$new_path = self::PARENT_SLUG . '/' . $new_slug;
+			$old_page = get_page_by_path($old_path);
+			$new_page = get_page_by_path($new_path);
+			if ($old_page instanceof WP_Post && !$new_page) {
+				wp_update_post([
+					'ID'        => (int) $old_page->ID,
+					'post_name' => $new_slug,
+				]);
+				update_post_meta((int) $old_page->ID, self::META_PRODUCT, $product_id);
+			}
+		}
+	}
+
+	/** Por si alguien desplegó la versión con páginas en raíz por error. */
+	private static function cleanup_mistaken_root_pages(int $parent_id): void {
+		foreach (self::$product_slugs as $slug => $product_id) {
+			$root = get_page_by_path($slug);
+			if (!$root instanceof WP_Post || (int) $root->post_parent !== 0) {
+				continue;
+			}
+			$meta = (int) get_post_meta((int) $root->ID, self::META_PRODUCT, true);
+			if ($meta !== (int) $product_id) {
+				continue;
+			}
+			$child_path = self::PARENT_SLUG . '/' . $slug;
+			if (get_page_by_path($child_path)) {
+				wp_trash_post((int) $root->ID);
+				continue;
+			}
+			wp_update_post([
+				'ID'          => (int) $root->ID,
+				'post_parent' => $parent_id,
+			]);
+		}
+	}
+
+	private static function ensure_child_comprar_page(int $parent_id, string $slug, int $product_id): void {
+		$path = self::PARENT_SLUG . '/' . $slug;
+		$page = get_page_by_path($path);
+		if ($page instanceof WP_Post) {
+			if ((int) get_post_meta((int) $page->ID, self::META_PRODUCT, true) !== $product_id) {
+				update_post_meta((int) $page->ID, self::META_PRODUCT, $product_id);
+			}
+			return;
+		}
+
+		$title = function_exists('get_the_title') ? get_the_title($product_id) : '';
+		if ($title === '') {
+			$title = ucwords(str_replace('-', ' ', $slug));
+		}
+
+		wp_insert_post([
+			'post_title'   => $title,
+			'post_name'    => $slug,
+			'post_parent'  => $parent_id,
+			'post_status'  => 'publish',
+			'post_type'    => 'page',
+			'post_content' => '',
+			'meta_input'   => [
+				self::META_PRODUCT => $product_id,
+			],
+		]);
+	}
+
+	/** Índice /comprar/ (solo primera vez). */
+	private static function maybe_seed_parent_index(): void {
 		if (get_option(self::OPTION_SEEDED) === 'yes') {
 			return;
 		}
@@ -601,30 +751,6 @@ final class SorteoSeguro_Comprar {
 			if (is_wp_error($parent_id)) {
 				return;
 			}
-		} else {
-			$parent_id = (int) $parent->ID;
-		}
-
-		foreach (self::$product_slugs as $slug => $product_id) {
-			$path = self::PARENT_SLUG . '/' . $slug;
-			if (get_page_by_path($path)) {
-				continue;
-			}
-			$title = get_the_title($product_id);
-			if ($title === '') {
-				$title = ucwords(str_replace('-', ' ', $slug));
-			}
-			wp_insert_post([
-				'post_title'   => $title,
-				'post_name'    => $slug,
-				'post_parent'  => $parent_id,
-				'post_status'  => 'publish',
-				'post_type'    => 'page',
-				'post_content' => '',
-				'meta_input'   => [
-					self::META_PRODUCT => (int) $product_id,
-				],
-			]);
 		}
 
 		update_option(self::OPTION_SEEDED, 'yes', false);
