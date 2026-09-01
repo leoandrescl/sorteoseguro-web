@@ -15,7 +15,7 @@ body.ss-comprar-index {
 	color: var(--ss-comprar-ink);
 }
 
-/* Layout: mobile = título → packs → checkout → media → premios */
+/* Layout: mobile = video/imágenes → descripción → packs → checkout */
 .ss-comprar__layout {
 	display: flex;
 	flex-direction: column;
@@ -27,19 +27,19 @@ body.ss-comprar-index {
 	box-sizing: border-box;
 }
 
-.ss-comprar__buy.purchase-panel {
+.ss-comprar__media {
 	order: 1;
 }
 
-.ss-comprar-checkout-wrap {
+.ss-comprar__below {
 	order: 2;
 }
 
-.ss-comprar__media {
+.ss-comprar__buy.purchase-panel {
 	order: 3;
 }
 
-.ss-comprar__below {
+.ss-comprar-checkout-wrap {
 	order: 4;
 }
 
