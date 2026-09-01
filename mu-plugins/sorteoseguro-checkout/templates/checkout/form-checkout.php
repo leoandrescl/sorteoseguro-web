@@ -163,11 +163,26 @@ $ico_check = class_exists('SorteoSeguro_Checkout') ? SorteoSeguro_Checkout::icon
 							}
 							$data['type'] = 'checkbox';
 							if ($um_key === 'checkbox_registro_acepto') {
-								$data['label'] = 'Acepto recibir información, novedades y promociones de Sorteo Seguro.';
+								$promo_copy = 'Acepto recibir información, novedades y promociones de Sorteo Seguro.';
+								$data['label'] = $promo_copy;
+								$data['title'] = $promo_copy;
+							}
+							ob_start();
+							echo UM()->fields()->edit_field($um_key, $data); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+							$um_html = (string) ob_get_clean();
+							if ($um_key === 'checkbox_registro_acepto') {
+								$promo_copy = 'Acepto recibir información, novedades y promociones de Sorteo Seguro.';
+								$legacy = [
+									'Acepto recibir información, novedades y promociones de Sorteo Seguro en mi correo electrónico. Podré cancelar la suscripción en cualquier momento',
+									'Acepto recibir información, novedades y promociones de Sorteo Seguro en mi correo electrónico.',
+								];
+								foreach ($legacy as $old) {
+									$um_html = str_replace($old, $promo_copy, $um_html);
+								}
 							}
 							?>
 							<div class="ss-co-agree__row ss-co-agree__row--<?php echo esc_attr($row); ?> ss-co-agree__row--um">
-								<?php echo UM()->fields()->edit_field($um_key, $data); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+								<?php echo $um_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 							</div>
 						<?php endforeach; ?>
 					<?php else : ?>

@@ -59,6 +59,21 @@
 	});
 
 	ready(function () {
+		/* Promo UM: copy corto (visible en .um-field-checkbox-option; el label UM está oculto en CSS). */
+		function formatPromoCheckboxes() {
+			var promoText = 'Acepto recibir información, novedades y promociones de Sorteo Seguro.';
+			document.querySelectorAll('.ss-co-agree__row--promo .um-field-checkbox-option').forEach(function (el) {
+				el.textContent = promoText;
+			});
+			document.querySelectorAll('.ss-co-agree__row--promo input[type="checkbox"]').forEach(function (input) {
+				input.value = promoText;
+			});
+		}
+		formatPromoCheckboxes();
+
+		if (window.jQuery) {
+			window.jQuery(document.body).on('updated_checkout', formatPromoCheckboxes);
+		}
 		if (window.jQuery) {
 			window.jQuery(document.body).off('click.ssCouponApply', '#apply_coupon_custom').on('click.ssCouponApply', '#apply_coupon_custom', function (e) {
 				e.preventDefault();
@@ -177,17 +192,6 @@
 			}
 		});
 
-		/* Promo UM: copy corto sin subtítulo */
-		function formatPromoCheckboxes() {
-			var promoText = 'Acepto recibir información, novedades y promociones de Sorteo Seguro.';
-			document.querySelectorAll('.ss-co-agree__row--promo .um-field-checkbox-option').forEach(function (el) {
-				if (el.getAttribute('data-ss-split') === '1') return;
-				el.textContent = promoText;
-				el.setAttribute('data-ss-split', '1');
-			});
-		}
-		formatPromoCheckboxes();
-
 		/* TyC UM: asegurar links morados del diseño si el texto viene plano */
 		function formatTycCheckboxes() {
 			document.querySelectorAll('.ss-co-agree__row--tyc .um-field-checkbox-option').forEach(function (el) {
@@ -207,8 +211,6 @@
 				syncPay();
 			});
 		}
-
-		/* Mark selected payment method */
 		function syncPay() {
 			document.querySelectorAll('.payment_methods > li').forEach(function (li) {
 				var on = !!(li.querySelector('input[type="radio"]:checked'));
