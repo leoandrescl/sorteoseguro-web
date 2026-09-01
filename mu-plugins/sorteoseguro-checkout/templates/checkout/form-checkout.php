@@ -23,7 +23,7 @@ $ico_shield = class_exists('SorteoSeguro_Checkout') ? SorteoSeguro_Checkout::ico
 $ico_check = class_exists('SorteoSeguro_Checkout') ? SorteoSeguro_Checkout::icon('check') : '';
 ?>
 
-<form name="checkout" method="post" class="checkout woocommerce-checkout custom-checkout-form ss-co" action="<?php echo esc_url(wc_get_checkout_url()); ?>" enctype="multipart/form-data" aria-label="<?php esc_attr_e('Checkout', 'woocommerce'); ?>">
+<form name="checkout" method="post" class="checkout woocommerce-checkout custom-checkout-form ss-co" action="<?php echo esc_url(apply_filters('ss_checkout_form_action', wc_get_checkout_url())); ?>" enctype="multipart/form-data" aria-label="<?php esc_attr_e('Checkout', 'woocommerce'); ?>">
 
 	<div class="checkout-main-wrapper ss-co__layout">
 
@@ -120,7 +120,17 @@ $ico_check = class_exists('SorteoSeguro_Checkout') ? SorteoSeguro_Checkout::icon
 				<header class="ss-co-step__head">
 					<span class="ss-co-step__num" aria-hidden="true">3</span>
 					<div>
-						<h3>Revisa y confirma</h3>
+						<h3>
+							Revisa y confirma
+							<?php
+							$ss_comprar_bases = (class_exists('SorteoSeguro_Comprar') && SorteoSeguro_Comprar::is_comprar_child())
+								? SorteoSeguro_Comprar::current_bases_url()
+								: '';
+							if ($ss_comprar_bases !== '') :
+								?>
+							<a class="ss-co-confirm-bases" href="<?php echo esc_url($ss_comprar_bases); ?>" target="_blank" rel="noopener noreferrer">Ver bases legales</a>
+							<?php endif; ?>
+						</h3>
 					</div>
 				</header>
 
@@ -152,6 +162,9 @@ $ico_check = class_exists('SorteoSeguro_Checkout') ? SorteoSeguro_Checkout::icon
 								continue;
 							}
 							$data['type'] = 'checkbox';
+							if ($um_key === 'checkbox_registro_acepto') {
+								$data['label'] = 'Acepto recibir información, novedades y promociones de Sorteo Seguro.';
+							}
 							?>
 							<div class="ss-co-agree__row ss-co-agree__row--<?php echo esc_attr($row); ?> ss-co-agree__row--um">
 								<?php echo UM()->fields()->edit_field($um_key, $data); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
@@ -163,8 +176,7 @@ $ico_check = class_exists('SorteoSeguro_Checkout') ? SorteoSeguro_Checkout::icon
 								<input type="checkbox" class="ss-co-check__input" name="ss_promo_optin" value="1">
 								<span class="ss-co-check__box" aria-hidden="true"></span>
 								<span class="ss-co-check__text">
-									Acepto recibir información, novedades y promociones de Sorteo Seguro en mi correo electrónico.
-									<small>Podré cancelar la suscripción en cualquier momento.</small>
+									Acepto recibir información, novedades y promociones de Sorteo Seguro.
 								</span>
 							</label>
 						</div>

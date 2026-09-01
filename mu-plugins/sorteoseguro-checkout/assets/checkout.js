@@ -177,23 +177,13 @@
 			}
 		});
 
-		/* Promo UM: separar subtítulo “Podré cancelar…” */
+		/* Promo UM: copy corto sin subtítulo */
 		function formatPromoCheckboxes() {
+			var promoText = 'Acepto recibir información, novedades y promociones de Sorteo Seguro.';
 			document.querySelectorAll('.ss-co-agree__row--promo .um-field-checkbox-option').forEach(function (el) {
 				if (el.getAttribute('data-ss-split') === '1') return;
-				var raw = (el.textContent || '').trim();
-				var tip = 'Podré cancelar la suscripción en cualquier momento';
-				var idx = raw.indexOf('Podré cancelar');
-				if (idx === -1) idx = raw.toLowerCase().indexOf('podre cancelar');
-				if (idx > 0) {
-					var main = raw.slice(0, idx).trim().replace(/\.\s*$/, '.');
-					el.innerHTML = '';
-					el.appendChild(document.createTextNode(main));
-					var small = document.createElement('small');
-					small.textContent = tip;
-					el.appendChild(small);
-					el.setAttribute('data-ss-split', '1');
-				}
+				el.textContent = promoText;
+				el.setAttribute('data-ss-split', '1');
 			});
 		}
 		formatPromoCheckboxes();

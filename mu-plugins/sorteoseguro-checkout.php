@@ -3,7 +3,7 @@
  * Plugin Name: Sorteo Seguro – Checkout
  * Description: Checkout clásico alineado al diseño (banner reserva, pasos, resumen, trust, legales).
  * Author: Sorteo Seguro
- * Version: 1.0.29
+ * Version: 1.0.30
  */
 if (!defined('ABSPATH')) {
 	exit;
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Checkout {
 
-	const VERSION = '1.0.29';
+	const VERSION = '1.0.30';
 	const DIR     = __DIR__ . '/sorteoseguro-checkout';
 	const DEFAULT_GATEWAY = 'woo-mercado-pago-basic';
 	const PAGE_ID = 13;
