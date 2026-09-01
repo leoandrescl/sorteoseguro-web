@@ -132,34 +132,6 @@
 		if (root.getAttribute('data-ss-co-bound') === '1') return;
 		root.setAttribute('data-ss-co-bound', '1');
 
-		var cfg = window.ssCheckout || {};
-		var mins = parseInt(cfg.reserveMinutes || 30, 10);
-		var key = cfg.storageKey || 'ss_checkout_reserve_until';
-
-		/* Reserve countdown */
-		(function () {
-			var clock = document.querySelector('[data-ss-reserve-clock]');
-			if (!clock) return;
-			var until = 0;
-			try {
-				until = parseInt(localStorage.getItem(key) || '0', 10) || 0;
-			} catch (e) { until = 0; }
-			var now = Date.now();
-			if (!until || until < now) {
-				until = now + mins * 60 * 1000;
-				try { localStorage.setItem(key, String(until)); } catch (e2) { /* ignore */ }
-			}
-			function tick() {
-				var left = Math.max(0, until - Date.now());
-				var totalSec = Math.floor(left / 1000);
-				var m = Math.floor(totalSec / 60);
-				var s = totalSec % 60;
-				clock.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
-			}
-			tick();
-			setInterval(tick, 1000);
-		})();
-
 		/* Mirror contact → billing */
 		function mirror(fromSel, toSel) {
 			var from = document.querySelector(fromSel);

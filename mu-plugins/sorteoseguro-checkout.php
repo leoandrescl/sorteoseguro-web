@@ -3,7 +3,7 @@
  * Plugin Name: Sorteo Seguro – Checkout
  * Description: Checkout clásico alineado al diseño (banner reserva, pasos, resumen, trust, legales).
  * Author: Sorteo Seguro
- * Version: 1.0.28
+ * Version: 1.0.29
  */
 if (!defined('ABSPATH')) {
 	exit;
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Checkout {
 
-	const VERSION = '1.0.28';
+	const VERSION = '1.0.29';
 	const DIR     = __DIR__ . '/sorteoseguro-checkout';
 	const DEFAULT_GATEWAY = 'woo-mercado-pago-basic';
 	const PAGE_ID = 13;
@@ -33,7 +33,6 @@ final class SorteoSeguro_Checkout {
 		add_action('wp_head', [__CLASS__, 'print_font_override'], 99999);
 		add_action('wp_footer', [__CLASS__, 'print_font_override'], 99999);
 		add_action('template_redirect', [__CLASS__, 'bypass_page_cache'], 0);
-		add_action('woocommerce_before_checkout_form', [__CLASS__, 'render_reserve_banner'], 5);
 		add_action('woocommerce_after_checkout_form', [__CLASS__, 'render_after_form'], 20);
 		add_action('woocommerce_checkout_process', [__CLASS__, 'sync_contact_fields']);
 		add_filter('woocommerce_gateway_icon', [__CLASS__, 'replace_gateway_icons'], 99, 2);
@@ -51,7 +50,7 @@ final class SorteoSeguro_Checkout {
 	 * No pisa la elección del usuario en update_order_review (AJAX): ahí WC usa el POST.
 	 */
 	public static function force_default_payment_method(): void {
-		if (!self::is_checkout() || is_wc_endpoint_url('order-pay')) {
+		if (!self::is_active_surface() || is_wc_endpoint_url('order-pay')) {
 			return;
 		}
 		if (!function_exists('WC') || !WC()->session) {
@@ -69,7 +68,7 @@ final class SorteoSeguro_Checkout {
 	 * @return array<string, WC_Payment_Gateway>
 	 */
 	public static function prefer_mercado_pago_gateway(array $gateways): array {
-		if (!self::is_checkout() || !isset($gateways[self::DEFAULT_GATEWAY])) {
+		if (!self::is_active_surface() || !isset($gateways[self::DEFAULT_GATEWAY])) {
 			return $gateways;
 		}
 		$mp = $gateways[self::DEFAULT_GATEWAY];
@@ -82,7 +81,7 @@ final class SorteoSeguro_Checkout {
 	 * LiteSpeed puede diferir el enqueue; el first paint no puede depender del footer.
 	 */
 	public static function print_critical_css(): void {
-		if (!self::is_checkout()) {
+		if (!self::is_active_surface()) {
 			return;
 		}
 		$path = self::DIR . '/assets/checkout.css';
@@ -128,7 +127,7 @@ final class SorteoSeguro_Checkout {
 
 	/** Dequeue por si el plugin encola el CSS/JS como archivo. */
 	public static function dequeue_legacy_ccj(): void {
-		if (!self::is_checkout()) {
+		if (!self::is_active_surface()) {
 			return;
 		}
 		foreach (self::LEGACY_CCJ_IDS as $id) {
@@ -149,7 +148,7 @@ final class SorteoSeguro_Checkout {
 	 * @return array<string, mixed>
 	 */
 	public static function filter_notices(array $notices): array {
-		if (!self::is_checkout() || empty($notices['notice']) || !is_array($notices['notice'])) {
+		if (!self::is_active_surface() || empty($notices['notice']) || !is_array($notices['notice'])) {
 			return $notices;
 		}
 		$notices['notice'] = array_values(array_filter($notices['notice'], static function ($item) {
@@ -236,6 +235,14 @@ final class SorteoSeguro_Checkout {
 		return $wc_id > 0 && is_page($wc_id);
 	}
 
+	/** Checkout standalone o embebido en /comprar/{slug}/ (vía filter). */
+	public static function is_active_surface(): bool {
+		if (self::is_checkout()) {
+			return true;
+		}
+		return (bool) apply_filters('ss_checkout_active_surface', false);
+	}
+
 	public static function bypass_page_cache(): void {
 		if (!self::is_checkout()) {
 			return;
@@ -268,11 +275,6 @@ final class SorteoSeguro_Checkout {
 		return $single ? '' : [''];
 	}
 
-	public static function reserve_minutes(): int {
-		$mins = (int) apply_filters('ss_checkout_reserve_minutes', 30);
-		return max(1, $mins);
-	}
-
 	/**
 	 * @param array<int, string> $template
 	 */
@@ -296,7 +298,7 @@ final class SorteoSeguro_Checkout {
 	}
 
 	public static function assets(): void {
-		if (!self::is_checkout()) {
+		if (!self::is_active_surface()) {
 			return;
 		}
 		if (class_exists('SorteoSeguro_Chrome')) {
@@ -310,16 +312,12 @@ final class SorteoSeguro_Checkout {
 		}
 		if (is_readable($dir . '/checkout.js')) {
 			wp_enqueue_script('ss-checkout', $base . '/checkout.js', ['jquery'], $ver, true);
-			wp_localize_script('ss-checkout', 'ssCheckout', [
-				'reserveMinutes' => self::reserve_minutes(),
-				'storageKey'     => 'ss_checkout_reserve_until',
-			]);
 		}
 	}
 
 	/** Override tardío: gana a Geologica/WPCode en checkout. */
 	public static function print_font_override(): void {
-		if (!self::is_checkout()) {
+		if (!self::is_active_surface()) {
 			return;
 		}
 		$hook = (string) current_filter();
@@ -349,7 +347,7 @@ final class SorteoSeguro_Checkout {
 
 	/** Inline de respaldo (LiteSpeed). */
 	public static function inline_assets(): void {
-		if (!self::is_checkout()) {
+		if (!self::is_active_surface()) {
 			return;
 		}
 		$css = self::DIR . '/assets/checkout.css';
@@ -360,42 +358,10 @@ final class SorteoSeguro_Checkout {
 			echo "\n</style>\n";
 		}
 		if (is_readable($js)) {
-			$mins = (int) self::reserve_minutes();
-			echo "<script id=\"ss-checkout-inline-js\" data-no-optimize=\"1\">window.ssCheckout=window.ssCheckout||{reserveMinutes:{$mins},storageKey:'ss_checkout_reserve_until'};\n";
+			echo "<script id=\"ss-checkout-inline-js\" data-no-optimize=\"1\">\n";
 			echo file_get_contents($js); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 			echo "\n</script>\n";
 		}
-	}
-
-	public static function render_reserve_banner(): void {
-		if (!self::is_checkout() || !is_user_logged_in()) {
-			return;
-		}
-		$mins = self::reserve_minutes();
-		?>
-		<div class="ss-co-shell">
-			<div class="ss-co-reserve" data-ss-reserve-banner aria-live="polite">
-				<div class="ss-co-reserve__copy">
-					<span class="ss-co-reserve__ico" aria-hidden="true">
-						<svg viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M12 3.2 5 6v5.2c0 4.6 3 8.6 7 9.8 4-1.2 7-5.2 7-9.8V6l-7-2.8z"/><path stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m8.8 12 2.2 2.2 4.3-4.4"/></svg>
-					</span>
-					<p>
-						<strong>Tu carrito está reservado por <?php echo (int) $mins; ?> minutos.</strong>
-						Completa tu compra dentro de este tiempo para asegurar tus DigiTickets.
-					</p>
-				</div>
-				<div class="ss-co-reserve__timer">
-					<span class="ss-co-reserve__timer-ico" aria-hidden="true">
-						<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><path stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M12 8v4.5l3 1.8"/></svg>
-					</span>
-					<div>
-						<small>Tiempo restante</small>
-						<strong data-ss-reserve-clock>00:00</strong>
-					</div>
-				</div>
-			</div>
-		</div>
-		<?php
 	}
 
 	public static function render_guest_gate(): void {
@@ -418,7 +384,10 @@ final class SorteoSeguro_Checkout {
 	}
 
 	public static function render_after_form(): void {
-		if (!self::is_checkout()) {
+		if (!self::is_active_surface()) {
+			return;
+		}
+		if (class_exists('SorteoSeguro_Comprar') && SorteoSeguro_Comprar::is_comprar_child()) {
 			return;
 		}
 		/* Bloque legal no se muestra en checkout (sí se reutiliza en bases). */
