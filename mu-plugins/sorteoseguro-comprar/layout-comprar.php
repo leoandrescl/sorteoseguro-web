@@ -127,6 +127,9 @@ $resolve_prize_image = static function ($image) use ($gallery) {
 					<?php
 					if (class_exists('SorteoSeguro_Comprar')) {
 						SorteoSeguro_Comprar::render_embedded_checkout();
+						if (SorteoSeguro_Comprar::cart_has_current_product()) {
+							SorteoSeguro_Comprar::maybe_enqueue_wc_checkout_with_cart();
+						}
 					} elseif (function_exists('woocommerce_checkout')) {
 						woocommerce_checkout();
 					} else {

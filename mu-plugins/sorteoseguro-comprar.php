@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Comprar {
 
-	const VERSION        = '1.0.15';
+	const VERSION        = '1.0.21';
 	const DIR            = __DIR__ . '/sorteoseguro-comprar';
 	const PARENT_SLUG    = 'comprar';
 	const META_PRODUCT   = '_ss_comprar_product_id';
@@ -50,9 +50,11 @@ final class SorteoSeguro_Comprar {
 		add_filter('ss_checkout_form_action', [__CLASS__, 'filter_checkout_form_action']);
 		add_filter('woocommerce_get_checkout_order_received_url', [__CLASS__, 'filter_order_received_url'], 10, 2);
 		add_action('wp_enqueue_scripts', [__CLASS__, 'override_wc_checkout_ajax_url'], 100);
+		add_action('wp_footer', [__CLASS__, 'override_wc_checkout_ajax_url'], 6);
 		add_filter('woocommerce_checkout_redirect_empty_cart', [__CLASS__, 'filter_checkout_redirect_empty_cart']);
 		add_action('wp_enqueue_scripts', [__CLASS__, 'maybe_dequeue_wc_checkout_on_preload'], 101);
-		add_action('wp_enqueue_scripts', [__CLASS__, 'maybe_enqueue_wc_checkout_with_cart'], 102);
+		add_action('wp_enqueue_scripts', [__CLASS__, 'maybe_enqueue_wc_checkout_with_cart'], 999);
+		add_filter('script_loader_tag', [__CLASS__, 'checkout_script_loader_tag'], 10, 3);
 	}
 
 	public static function product_slugs(): array {
@@ -263,15 +265,16 @@ final class SorteoSeguro_Comprar {
 	}
 
 	public static function maybe_dequeue_wc_checkout_on_preload(): void {
+		self::boot_wc_cart();
 		if (!self::is_checkout_preload()) {
 			return;
 		}
 		wp_dequeue_script('wc-checkout');
-		wp_deregister_script('wc-checkout');
 	}
 
 	/** WooCommerce no encola wc-checkout en /comprar/ aunque is_checkout sea true vía filtro. */
 	public static function maybe_enqueue_wc_checkout_with_cart(): void {
+		self::boot_wc_cart();
 		if (!self::is_comprar_child() || !self::cart_has_current_product()) {
 			return;
 		}
@@ -279,14 +282,15 @@ final class SorteoSeguro_Comprar {
 			return;
 		}
 
+		if (class_exists('WC_Frontend_Scripts')) {
+			WC_Frontend_Scripts::load_scripts();
+		}
+
 		wp_enqueue_style('select2');
 		wp_enqueue_script('selectWoo');
 		wp_enqueue_script('wc-checkout');
 
 		$scripts = wp_scripts();
-		if (!isset($scripts->registered['wc-checkout'])) {
-			return;
-		}
 		if (!empty($scripts->registered['wc-checkout']->extra['data'])) {
 			return;
 		}
@@ -312,6 +316,22 @@ final class SorteoSeguro_Comprar {
 				),
 			]
 		);
+		SorteoSeguro_Comprar::override_wc_checkout_ajax_url();
+	}
+
+	/** Evita que LiteSpeed difiera/combine wc-checkout en /comprar/ con pack. */
+	public static function checkout_script_loader_tag(string $tag, string $handle, string $src): string {
+		if (!self::is_comprar_child() || !self::cart_has_current_product()) {
+			return $tag;
+		}
+		$handles = ['wc-checkout', 'woocommerce', 'selectWoo', 'jquery-blockui', 'wc-country-select'];
+		if (!in_array($handle, $handles, true)) {
+			return $tag;
+		}
+		if (strpos($tag, 'data-no-optimize') !== false) {
+			return $tag;
+		}
+		return str_replace('<script ', '<script data-no-optimize="1" data-no-defer="1" ', $tag);
 	}
 
 	public static function enable_chrome(bool $enabled): bool {
