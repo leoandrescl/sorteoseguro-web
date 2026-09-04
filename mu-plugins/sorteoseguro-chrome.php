@@ -3,7 +3,7 @@
  * Plugin Name: Sorteo Seguro – Chrome (Header/Footer)
  * Description: Header compacto y footer estandarizado para plantillas custom (PDP, FAQ, etc.).
  * Author: Sorteo Seguro
- * Version: 1.2.7
+ * Version: 1.2.8
  */
 if (!defined('ABSPATH')) {
 	exit;
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Chrome {
 
-	const VERSION = '1.2.7';
+	const VERSION = '1.2.8';
 
 	/** Tipografía estándar del proyecto (usar en CSS vía --ss-font-family). */
 	const FONT_STACK = '"Montserrat", "Poppins", "Segoe UI", sans-serif';
@@ -166,8 +166,10 @@ final class SorteoSeguro_Chrome {
 			return;
 		}
 		echo "\n<style id=\"ss-chrome-header-fix\">\n";
+		echo 'body.ss-chrome .header-actions{position:relative!important;overflow:visible!important;}';
+		echo 'body.ss-chrome span.promo-valor-header{position:absolute!important;z-index:1!important;bottom:-30px!important;right:-20px!important;white-space:nowrap!important;}';
 		echo '@media (max-width:1200px){';
-		echo 'body.ss-chrome .header-actions{position:static!important;top:auto!important;right:auto!important;left:auto!important;bottom:auto!important;}';
+		echo 'body.ss-chrome .header-actions{position:relative!important;top:auto!important;right:auto!important;left:auto!important;bottom:auto!important;overflow:visible!important;}';
 		echo 'body.ss-chrome .menu-toggle,body.ss-chrome button.menu-toggle{position:static!important;width:44px!important;height:44px!important;margin:0 0 0 auto!important;}';
 		echo 'body.ss-chrome .header-container,body.ss-chrome .main-header-v2 .header-container{display:flex!important;flex-wrap:nowrap!important;grid-template-columns:none!important;}';
 		echo 'body.ss-chrome .logo{flex:1 1 0%!important;min-width:0!important;overflow:hidden!important;white-space:nowrap!important;}';

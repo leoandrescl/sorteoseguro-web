@@ -275,7 +275,7 @@ body.ss-chrome .main-header-v2 .logo img {
 		margin: 0 !important;
 		padding: 0 !important;
 		gap: 0.45rem !important;
-		position: static !important;
+		position: relative !important;
 		inset: auto !important;
 		top: auto !important;
 		right: auto !important;
@@ -284,6 +284,7 @@ body.ss-chrome .main-header-v2 .logo img {
 		float: none !important;
 		transform: none !important;
 		z-index: 2 !important;
+		overflow: visible !important;
 	}
 	body.ss-chrome .main-header .header-actions .icon-btn,
 	body.ss-chrome .main-header-v2 .header-actions .icon-btn {
@@ -429,6 +430,20 @@ body.ss-chrome .main-header-v2 .logo img {
 		max-width: 40px !important;
 		max-height: 40px !important;
 	}
+}
+
+/* Promo wallet: colgada bajo el icono de perfil (último control de .header-actions) */
+body.ss-chrome .main-header .header-actions,
+body.ss-chrome .main-header-v2 .header-actions {
+	position: relative !important;
+	overflow: visible !important;
+}
+body.ss-chrome span.promo-valor-header {
+	position: absolute !important;
+	z-index: 1 !important;
+	bottom: -30px !important;
+	right: -20px !important;
+	white-space: nowrap !important;
 }
 
 body.admin-bar.ss-chrome .main-header,
