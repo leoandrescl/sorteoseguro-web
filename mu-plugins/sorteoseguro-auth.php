@@ -3,7 +3,7 @@
  * Plugin Name: Sorteo Seguro – Auth (Mi cuenta / Registro)
  * Description: Plantillas y estilos para login (/mi-cuenta/) y registro (/registro/) con chrome y inputs alineados al checkout.
  * Author: Sorteo Seguro
- * Version: 1.0.4
+ * Version: 1.0.5
  */
 if (!defined('ABSPATH')) {
 	exit;
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Auth {
 
-	const VERSION = '1.0.4';
+	const VERSION = '1.0.5';
 	const DIR     = __DIR__ . '/sorteoseguro-auth';
 
 	const PAGE_MI_CUENTA = 14;
