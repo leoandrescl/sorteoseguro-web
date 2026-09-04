@@ -442,7 +442,7 @@ body.ss-chrome span.promo-valor-header {
 	position: absolute !important;
 	z-index: 1 !important;
 	bottom: -30px !important;
-	right: -20px !important;
+	right: 0 !important;
 	white-space: nowrap !important;
 }
 
