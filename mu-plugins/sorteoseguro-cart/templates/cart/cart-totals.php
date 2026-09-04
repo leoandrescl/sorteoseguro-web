@@ -54,7 +54,8 @@ $ico = static function (string $name): string {
 				<?php
 				continue;
 			}
-			$promo_label = $is_promo ? (string) $fee->name : $fee->name;
+			$promo_name = trim(str_replace('[PROMO]', '', (string) $fee->name));
+			$promo_label = 'PROMO - ' . strtoupper($promo_name);
 			?>
 			<div class="ss-cart-totals__row ss-cart-totals__row--discount">
 				<span><?php echo esc_html($promo_label); ?></span>

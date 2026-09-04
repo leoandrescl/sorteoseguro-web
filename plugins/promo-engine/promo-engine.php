@@ -2,8 +2,9 @@
 /**
  * Plugin Name: Promo Engine (Stable 1.3.0) — Non-Stacking Logic
  * Description: Sistema de promociones con lógica de inventario virtual (no acumulable por ítem) y prioridad por volumen de compra (BxPy).
- * Version: 1.3.0-stable-p10
+ * Version: 1.3.0-stable-p11
  * p10: bonos fixed/% acumulables aplican sobre líneas DigiPack (ya no las bloquea el inventario BxPy).
+ * p11: bonos fixed/% = fee único de carrito sin nombre de producto; min_total = total a pagar tras packs.
  */
 
 if (!defined('ABSPATH')) exit;
@@ -1030,28 +1031,63 @@ if (!class_exists('Promo_Engine_Stable')) :
         /* -------------------- Cálculo descuento -------------------- */
 
         /**
-         * Un fee por ítem. WooCommerce pisa add_fee() si el nombre/id se repite
-         * (dos packs del mismo sorteo); el id incluye la clave de línea.
+         * Packs (BxPy): un fee por línea con sufijo de sorteo (evita colisión WC).
+         * Bonos fixed/%: un solo fee de carrito, sin nombre de producto
+         * (el bono es de la compra, no de un DigiTicket concreto).
          */
         private function add_promo_fees_for_calc($cart, array $final_calc): void {
+            $disc  = isset($final_calc['discount']) ? (float) $final_calc['discount'] : 0.0;
+            $label = isset($final_calc['label']) ? (string) $final_calc['label'] : '';
+            $type  = isset($final_calc['type']) ? (string) $final_calc['type'] : '';
+            $cid   = isset($final_calc['campaign_id']) ? (int) $final_calc['campaign_id'] : 0;
+
+            if ($disc <= 0 || $label === '') {
+                return;
+            }
+
+            // Bono de carrito: una línea limpia "[PROMO] Bono $60.000".
+            if (in_array($type, ['fixed', 'percent'], true)) {
+                $this->add_promo_fee($cart, $label, -$disc, 'cart-' . $cid);
+                return;
+            }
+
             $lines = (isset($final_calc['lines']) && is_array($final_calc['lines'])) ? $final_calc['lines'] : [];
             if (empty($lines)) {
-                $disc = isset($final_calc['discount']) ? (float) $final_calc['discount'] : 0.0;
-                $label = isset($final_calc['label']) ? (string) $final_calc['label'] : '';
-                if ($disc > 0 && $label !== '') {
-                    $this->add_promo_fee($cart, $label, -$disc, 'cart');
-                }
+                $this->add_promo_fee($cart, $label, -$disc, 'cart-' . $cid);
                 return;
             }
             foreach ($lines as $cart_key => $line) {
-                $disc = isset($line['discount']) ? (float) $line['discount'] : 0.0;
-                if ($disc <= 0) {
+                $line_disc = isset($line['discount']) ? (float) $line['discount'] : 0.0;
+                if ($line_disc <= 0) {
                     continue;
                 }
                 $item  = (isset($line['item']) && is_array($line['item'])) ? $line['item'] : [];
-                $label = $this->unique_promo_fee_label((string) $final_calc['label'], $item, (string) $cart_key);
-                $this->add_promo_fee($cart, $label, -$disc, (string) $cart_key);
+                $fline = $this->unique_promo_fee_label($label, $item, (string) $cart_key);
+                $this->add_promo_fee($cart, $fline, -$line_disc, (string) $cart_key);
             }
+        }
+
+        /**
+         * Total a pagar estimado ya con fees [PROMO] previos (packs) y cupones,
+         * antes de agregar el bono actual. Sirve para min_total de campañas fixed/%.
+         */
+        private function cart_payable_after_existing_promos($cart): float {
+            if (!is_object($cart) || !method_exists($cart, 'get_subtotal')) {
+                return 0.0;
+            }
+            $payable = (float) $cart->get_subtotal();
+            if (method_exists($cart, 'get_discount_total')) {
+                $payable -= (float) $cart->get_discount_total();
+            }
+            $fees = method_exists($cart, 'get_fees') ? $cart->get_fees() : [];
+            foreach ($fees as $fee) {
+                $name = isset($fee->name) ? (string) $fee->name : '';
+                if (strpos($name, '[PROMO] ') !== 0) {
+                    continue;
+                }
+                $payable += (float) $fee->amount;
+            }
+            return (float) wc_format_decimal(max(0, $payable), wc_get_price_decimals());
         }
 
         private function add_promo_fee($cart, string $label, float $amount, string $uniq = ''): void {
@@ -1139,28 +1175,29 @@ if (!class_exists('Promo_Engine_Stable')) :
                 }
             }
 
-            if (empty($eligible_items) || ($min_total > 0 && $eligible_subtotal < $min_total)) return ['discount' => 0, 'label' => '', 'consumed' => [], 'lines' => []];
+            if (empty($eligible_items)) {
+                return ['discount' => 0, 'label' => '', 'consumed' => [], 'lines' => [], 'type' => $type, 'campaign_id' => (int) $campaign_id];
+            }
+
+            // Bonos de carrito: umbral = total a pagar tras packs/cupones ya aplicados.
+            // Packs BxPy: umbral sigue siendo el subtotal elegible de esas líneas.
+            if ($min_total > 0) {
+                $base_for_min = in_array($type, ['fixed', 'percent'], true)
+                    ? $this->cart_payable_after_existing_promos($cart)
+                    : $eligible_subtotal;
+                if ($base_for_min < $min_total) {
+                    return ['discount' => 0, 'label' => '', 'consumed' => [], 'lines' => [], 'type' => $type, 'campaign_id' => (int) $campaign_id];
+                }
+            }
 
             $label = '[PROMO] ' . get_the_title($campaign_id);
             $discount = 0.0; $consumed_in_calc = []; $lines = [];
 
             if ($type === 'fixed') {
                 $discount = min($amount, $eligible_subtotal);
-                $keys = array_keys($eligible_items);
-                $last = $keys ? $keys[count($keys) - 1] : null;
-                $left = $discount;
+                // Un solo fee de carrito: no hace falta repartir por línea en el label.
                 foreach ($eligible_items as $k => $it) {
                     $consumed_in_calc[$k] = $it['quantity'];
-                    $share = ($eligible_subtotal > 0)
-                        ? round($discount * ((float) $it['line_subtotal'] / $eligible_subtotal), wc_get_price_decimals())
-                        : 0;
-                    if ($k === $last) {
-                        $share = $left;
-                    }
-                    $left -= $share;
-                    if ($share > 0) {
-                        $lines[$k] = ['discount' => $share, 'item' => $it];
-                    }
                 }
             }
             elseif ($type === 'percent') {
@@ -1172,6 +1209,8 @@ if (!class_exists('Promo_Engine_Stable')) :
                         $discount += $line_d;
                     }
                 }
+                // Percent también se muestra como fee único de carrito (suma).
+                $lines = [];
             }
             elseif (in_array($type, ['2x1', '3x2', 'bxpy'])) {
                 $buy = ($type==='2x1')?2:(($type==='3x2')?3:(int)get_post_meta($campaign_id, self::META['bxpy_buy'], true));
@@ -1192,7 +1231,14 @@ if (!class_exists('Promo_Engine_Stable')) :
                     }
                 }
             }
-            return ['discount' => max(0, (float)$discount), 'label' => $label, 'consumed' => $consumed_in_calc, 'lines' => $lines];
+            return [
+                'discount'    => max(0, (float) $discount),
+                'label'       => $label,
+                'consumed'    => $consumed_in_calc,
+                'lines'       => $lines,
+                'type'        => $type,
+                'campaign_id' => (int) $campaign_id,
+            ];
         }
 
         public function mark_redemption_on_order($order_id, $posted_data, $order) {
