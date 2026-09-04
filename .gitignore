@@ -34,6 +34,7 @@ _checkout-templates/
 docs/
 
 # Scratch / local captures
+brevo-contactos*.csv
 _*.html
 _*.jpeg
 _*.png
