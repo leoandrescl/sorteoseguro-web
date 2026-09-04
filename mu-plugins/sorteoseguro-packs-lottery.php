@@ -13,14 +13,14 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Packs_Lottery {
 
-	const VERSION        = '1.3.27';
+	const VERSION        = '1.3.29';
 	const AJAX_ACTION    = 'ss_packs_select';
 	const NONCE_ACTION   = 'ss_packs_lottery';
 	const LOCK_PREFIX    = 'ss_pack_lock_';
 	const MYSQL_LOCK_PFX = 'ss_pack_tickets_';
 	const LOCK_TTL       = 20;
 	const MYSQL_LOCK_WAIT = 15;
-	const MAX_PICK_TRIES = 20;
+	const MAX_PICK_TRIES = 40;
 	const OPTION_RESERVE_PREV = 'ss_packs_prev_reserve_enabled';
 	const OPTION_RESERVE_TIME_PREV = 'ss_packs_prev_reserve_minutes';
 	const OPTION_BOOTSTRAPPED = 'ss_packs_lottery_bootstrapped';
@@ -92,6 +92,11 @@ final class SorteoSeguro_Packs_Lottery {
 	}
 
 	private static function resolve_lottery_product_id(): int {
+		$forced = (int) apply_filters('ss_packs_lottery_product_id', 0);
+		if ($forced > 0) {
+			return $forced;
+		}
+
 		if (!function_exists('wc_get_product') || !function_exists('lty_is_lottery_product')) {
 			return 0;
 		}
@@ -212,6 +217,8 @@ final class SorteoSeguro_Packs_Lottery {
 			'nonce'     => wp_create_nonce(self::NONCE_ACTION),
 			'productId' => (int) $product_id,
 			'checkout'  => function_exists('wc_get_checkout_url') ? wc_get_checkout_url() : '/checkout/',
+			'embeddedCheckout' => false,
+			'checkoutAnchor'   => '',
 			'campaigns' => $campaigns,
 			'i18n'      => array(
 				'heading'     => 'Elige cuántos DigiTickets quieres',
@@ -244,17 +251,18 @@ final class SorteoSeguro_Packs_Lottery {
 				'trustFoot2'  => 'Proceso rápido, transparente y seguro.',
 			),
 		);
+		$config = apply_filters('ss_packs_lottery_config', $config, $product_id);
 
 		echo "\n<!-- ss-packs-lottery v" . esc_html(self::VERSION) . " product=" . (int) $product_id . " -->\n";
 		echo '<style id="ss-packs-lottery-css">' . self::front_css() . "</style>\n";
-		echo '<script>window.ssPacksLottery = ' . wp_json_encode($config) . ';</script>' . "\n";
+		echo '<script id="ss-packs-lottery-config" data-no-optimize="1">window.ssPacksLottery = ' . wp_json_encode($config) . ';</script>' . "\n";
 	}
 
 	public static function print_footer_assets(): void {
 		if (!self::is_lottery_product_context()) {
 			return;
 		}
-		echo '<script id="ss-packs-lottery-js">' . self::front_js() . "</script>\n";
+		echo '<script id="ss-packs-lottery-js" data-no-optimize="1">' . self::front_js() . "</script>\n";
 	}
 
 	public static function print_checkout_assets(): void {
@@ -523,9 +531,24 @@ JS;
 				WC()->session->set('ss_pack_lock_id', $customer_id);
 			}
 
+			if (WC()->cart) {
+				WC()->cart->calculate_totals();
+			}
+			if (WC()->session && method_exists(WC()->session, 'save_data')) {
+				WC()->session->save_data();
+			}
+
+			$redirect = (string) apply_filters(
+				'ss_packs_select_redirect',
+				wc_get_checkout_url(),
+				$product_id,
+				$campaign_id
+			);
+
 			wp_send_json_success(
 				array(
-					'redirect'    => wc_get_checkout_url(),
+					'redirect'    => $redirect,
+					'embedded'    => (bool) apply_filters('ss_packs_select_embedded', false, $product_id, $campaign_id),
 					'tickets'     => $tickets,
 					'quantity'    => $qty,
 					'campaign_id' => $campaign_id,
@@ -570,6 +593,8 @@ JS;
 	 * @return string[]
 	 */
 	private static function pick_and_claim_tickets(int $product_id, int $qty, string $customer_id): array {
+		self::purge_orphan_hold_tickets($product_id);
+
 		for ($try = 0; $try < self::MAX_PICK_TRIES; $try++) {
 			clean_post_cache($product_id);
 			$fresh = wc_get_product($product_id);
@@ -582,8 +607,48 @@ JS;
 				return array();
 			}
 
+			$blocked    = self::get_blocked_ticket_map($product_id, $customer_id);
+			$free_pool  = array();
+			foreach ($remaining as $ticket) {
+				$ticket = (string) $ticket;
+				if ($ticket === '' || isset($blocked[$ticket])) {
+					continue;
+				}
+				$free_pool[] = $ticket;
+			}
+			if (count($free_pool) < $qty) {
+				return array();
+			}
+
+			// Preferir el random nativo Lottery, filtrando holds/reservas ajenas.
 			$candidates = lty_get_random_user_chooses_ticket_numbers_by_quantity($fresh, $qty);
 			$candidates = array_values(array_unique(array_filter(array_map('strval', (array) $candidates))));
+			$candidates = array_values(array_filter(
+				$candidates,
+				static function ($t) use ($blocked) {
+					return $t !== '' && !isset($blocked[$t]);
+				}
+			));
+
+			// Si el random nativo chocó con holds huérfanos, completar desde el pool libre.
+			if (count($candidates) < $qty) {
+				$need = $qty - count($candidates);
+				$have = array_fill_keys($candidates, true);
+				shuffle($free_pool);
+				foreach ($free_pool as $ticket) {
+					if (isset($have[$ticket])) {
+						continue;
+					}
+					$candidates[] = $ticket;
+					$have[$ticket] = true;
+					$need--;
+					if ($need <= 0) {
+						break;
+					}
+				}
+			}
+
+			$candidates = array_values(array_unique($candidates));
 			if (count($candidates) !== $qty) {
 				continue;
 			}
@@ -606,6 +671,144 @@ JS;
 		}
 
 		return array();
+	}
+
+	/**
+	 * Tickets bloqueados: hold nativo + reservas ajenas vigentes.
+	 *
+	 * @return array<string,true>
+	 */
+	private static function get_blocked_ticket_map(int $product_id, string $customer_id): array {
+		$blocked = array();
+
+		$hold = array_filter(array_map('strval', (array) get_post_meta($product_id, '_lty_hold_tickets', true)));
+		foreach ($hold as $ticket) {
+			if ($ticket !== '') {
+				$blocked[$ticket] = true;
+			}
+		}
+
+		$product = wc_get_product($product_id);
+		if ($product && method_exists($product, 'get_reserved_tickets_data')) {
+			$reserve_minutes = max(1, (int) get_option('lty_settings_reserve_ticket_time_in_min', 30));
+			$now             = time();
+			$data            = $product->get_reserved_tickets_data();
+			if (is_array($data)) {
+				foreach ($data as $ticket => $rows) {
+					if (!is_array($rows)) {
+						continue;
+					}
+					foreach ($rows as $cid => $ts) {
+						if (absint($ts) + (60 * $reserve_minutes) < $now) {
+							continue;
+						}
+						if ((string) $cid === (string) $customer_id) {
+							continue; // nuestras reservas no bloquean el re-claim
+						}
+						$blocked[(string) $ticket] = true;
+						break;
+					}
+				}
+			}
+		}
+
+		return $blocked;
+	}
+
+	/**
+	 * Limpia holds nativos sin reserva vigente (pedidos abandonados dejan basura
+	 * en _lty_hold_tickets y el pack 20x8 falla por colisión aleatoria).
+	 */
+	private static function purge_orphan_hold_tickets(int $product_id): void {
+		$hold = array_values(array_filter(array_map('strval', (array) get_post_meta($product_id, '_lty_hold_tickets', true))));
+		if (count($hold) < 50) {
+			// Poca basura: no tocar en caliente.
+			return;
+		}
+
+		$keep = array();
+		$product = wc_get_product($product_id);
+		if ($product && method_exists($product, 'get_reserved_tickets_data')) {
+			$reserve_minutes = max(1, (int) get_option('lty_settings_reserve_ticket_time_in_min', 30));
+			$now             = time();
+			$data            = $product->get_reserved_tickets_data();
+			$active          = array();
+			if (is_array($data)) {
+				foreach ($data as $ticket => $rows) {
+					if (!is_array($rows)) {
+						continue;
+					}
+					foreach ($rows as $cid => $ts) {
+						unset($cid);
+						if (absint($ts) + (60 * $reserve_minutes) >= $now) {
+							$active[(string) $ticket] = true;
+							break;
+						}
+					}
+				}
+			}
+			foreach ($hold as $ticket) {
+				if (isset($active[$ticket])) {
+					$keep[] = $ticket;
+				}
+			}
+		}
+
+		// También conservar holds ligados a pedidos pending/on-hold recientes.
+		if (function_exists('wc_get_orders')) {
+			$orders = wc_get_orders(
+				array(
+					'status'       => array('pending', 'on-hold', 'checkout-draft'),
+					'limit'        => 80,
+					'return'       => 'objects',
+					'date_created' => '>' . (time() - 2 * DAY_IN_SECONDS),
+				)
+			);
+			$pending_tickets = array();
+			foreach ($orders as $order) {
+				if (!is_a($order, 'WC_Order')) {
+					continue;
+				}
+				foreach ($order->get_items() as $item) {
+					if ((int) $item->get_product_id() !== $product_id) {
+						continue;
+					}
+					$raw = $item->get_meta('lty_lottery_ticket_numbers');
+					if ($raw === '' || $raw === null) {
+						$raw = $item->get_meta('_lty_ticket_numbers');
+					}
+					if (is_array($raw)) {
+						foreach ($raw as $t) {
+							$pending_tickets[(string) $t] = true;
+						}
+					} elseif (is_string($raw) && $raw !== '') {
+						foreach (preg_split('/\s*,\s*/', $raw) as $t) {
+							if ($t !== '') {
+								$pending_tickets[(string) $t] = true;
+							}
+						}
+					}
+					if (!empty($item['lty_lottery']['tickets']) && is_array($item['lty_lottery']['tickets'])) {
+						foreach ($item['lty_lottery']['tickets'] as $t) {
+							$pending_tickets[(string) $t] = true;
+						}
+					}
+				}
+			}
+			foreach ($hold as $ticket) {
+				if (isset($pending_tickets[$ticket]) && !in_array($ticket, $keep, true)) {
+					$keep[] = $ticket;
+				}
+			}
+		}
+
+		$keep = array_values(array_unique($keep));
+		if (count($keep) >= count($hold)) {
+			return;
+		}
+
+		update_post_meta($product_id, '_lty_hold_tickets', $keep);
+		clean_post_cache($product_id);
 	}
 
 	/**
@@ -2369,9 +2572,26 @@ CSS;
 		fetch(cfg.ajaxUrl, { method: 'POST', credentials: 'same-origin', body: body })
 			.then(function (r) { return r.json(); })
 			.then(function (res) {
-				if (res && res.success && res.data && res.data.redirect) {
-					window.location.href = res.data.redirect;
-					return;
+				if (res && res.success && res.data) {
+					if (cfg.embeddedCheckout || res.data.embedded) {
+						var target = res.data.redirect || (window.location.pathname + (cfg.checkoutAnchor || '#ss-comprar-checkout'));
+						var urlObj;
+						try {
+							urlObj = new URL(target, window.location.origin);
+						} catch (e) {
+							urlObj = new URL(window.location.href);
+						}
+						urlObj.searchParams.set('ss_pack', String(res.data.campaign_id || '1'));
+						if (!urlObj.hash && cfg.checkoutAnchor) {
+							urlObj.hash = cfg.checkoutAnchor.replace(/^#/, '');
+						}
+						window.location.assign(urlObj.toString());
+						return;
+					}
+					if (res.data.redirect) {
+						window.location.href = res.data.redirect;
+						return;
+					}
 				}
 				var msg = (res && res.data && res.data.message) ? res.data.message : cfg.i18n.error;
 				setStatus(msg, true);
@@ -2397,11 +2617,43 @@ CSS;
 			});
 	}
 
+	function findCampaignByPackParam(raw) {
+		var cfg = window.ssPacksLottery;
+		if (!cfg || !cfg.campaigns || raw === null || raw === '') return null;
+		var key = String(raw).trim();
+		for (var i = 0; i < cfg.campaigns.length; i++) {
+			var c = cfg.campaigns[i];
+			if (String(c.id) === key || String(c.buy) === key) return c;
+		}
+		return null;
+	}
+
+	function maybePreselectPackFromQuery() {
+		var cfg = window.ssPacksLottery;
+		if (!cfg) return;
+		var params = new URLSearchParams(window.location.search);
+		var raw = params.get('pack');
+		if (!raw) return;
+		var campaign = findCampaignByPackParam(raw);
+		if (!campaign) return;
+		var tries = 0;
+		var timer = setInterval(function () {
+			tries++;
+			var card = document.querySelector('.ss-pack-card[data-campaign-id="' + campaign.id + '"]');
+			if (card) {
+				clearInterval(timer);
+				selectPack(String(campaign.id), card);
+			} else if (tries > 40) {
+				clearInterval(timer);
+			}
+		}, 150);
+	}
+
 	ready(function () {
 		hideManualUi();
 		renderPacks();
 		hideManualUi();
-		setTimeout(function () { hideManualUi(); renderPacks(); }, 500);
+		setTimeout(function () { hideManualUi(); renderPacks(); maybePreselectPackFromQuery(); }, 500);
 		setTimeout(function () { hideManualUi(); renderPacks(); }, 2000);
 
 		document.addEventListener('submit', function (e) {
