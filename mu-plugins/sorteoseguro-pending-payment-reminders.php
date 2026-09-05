@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Pending_Payment_Reminders {
 
-	const VERSION           = '1.2.5';
+	const VERSION           = '1.2.6';
 	const LOG_SOURCE        = 'sorteoseguro-pending-reminders';
 	const OPTION_CUTOFF     = 'ss_ppr_cutoff';
 	const OPTION_LOG        = 'ss_ppr_send_log';
@@ -989,7 +989,7 @@ final class SorteoSeguro_Pending_Payment_Reminders {
 		if (!$created) {
 			return false;
 		}
-		$minutes = (int) get_option('lty_settings_reserve_ticket_time_in_min', 30);
+		$minutes = (int) get_option('lty_settings_reserve_ticket_time_in_min', 180);
 		$minutes = max(1, $minutes);
 		return (time() - $created->getTimestamp()) > ($minutes * MINUTE_IN_SECONDS);
 	}

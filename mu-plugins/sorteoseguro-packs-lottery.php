@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Packs_Lottery {
 
-	const VERSION        = '1.3.29';
+	const VERSION        = '1.3.30';
 	const AJAX_ACTION    = 'ss_packs_select';
 	const NONCE_ACTION   = 'ss_packs_lottery';
 	const LOCK_PREFIX    = 'ss_pack_lock_';
@@ -24,6 +24,9 @@ final class SorteoSeguro_Packs_Lottery {
 	const OPTION_RESERVE_PREV = 'ss_packs_prev_reserve_enabled';
 	const OPTION_RESERVE_TIME_PREV = 'ss_packs_prev_reserve_minutes';
 	const OPTION_BOOTSTRAPPED = 'ss_packs_lottery_bootstrapped';
+	/** Alineado a recordatorios de pago pendiente (~3 h). */
+	const RESERVE_MINUTES = 180;
+	const OPTION_RESERVE_180 = 'ss_packs_reserve_180_applied';
 
 	/** @var int|null */
 	private static $detected_product_id = null;
@@ -61,21 +64,32 @@ final class SorteoSeguro_Packs_Lottery {
 
 	/**
 	 * Activa reserva nativa de Lottery (documentar rollback en OPTION_*_PREV).
+	 * Ventana: 3 horas, alineada a recordatorios de pedidos pendientes.
 	 */
 	public static function bootstrap_reserve_setting(): void {
-		if (get_option(self::OPTION_BOOTSTRAPPED) === 'yes') {
-			return;
+		if (get_option(self::OPTION_BOOTSTRAPPED) !== 'yes') {
+			$prev_enabled = get_option('lty_settings_enable_reserve_ticket_manual_selection_type', 'no');
+			$prev_minutes = get_option('lty_settings_reserve_ticket_time_in_min', '5');
+
+			update_option(self::OPTION_RESERVE_PREV, $prev_enabled, false);
+			update_option(self::OPTION_RESERVE_TIME_PREV, $prev_minutes, false);
+
+			update_option('lty_settings_enable_reserve_ticket_manual_selection_type', 'yes');
+			update_option('lty_settings_reserve_ticket_time_in_min', (string) self::RESERVE_MINUTES);
+			update_option(self::OPTION_BOOTSTRAPPED, 'yes', false);
 		}
 
-		$prev_enabled = get_option('lty_settings_enable_reserve_ticket_manual_selection_type', 'no');
-		$prev_minutes = get_option('lty_settings_reserve_ticket_time_in_min', '5');
+		// Una vez: subir 30 min → 180 min (ventana de recordatorios pendientes).
+		if (get_option(self::OPTION_RESERVE_180) !== 'yes') {
+			update_option('lty_settings_reserve_ticket_time_in_min', (string) self::RESERVE_MINUTES);
+			update_option('lty_settings_enable_reserve_ticket_manual_selection_type', 'yes');
+			update_option(self::OPTION_RESERVE_180, 'yes', false);
+		}
+	}
 
-		update_option(self::OPTION_RESERVE_PREV, $prev_enabled, false);
-		update_option(self::OPTION_RESERVE_TIME_PREV, $prev_minutes, false);
-
-		update_option('lty_settings_enable_reserve_ticket_manual_selection_type', 'yes');
-		update_option('lty_settings_reserve_ticket_time_in_min', '30');
-		update_option(self::OPTION_BOOTSTRAPPED, 'yes', false);
+	/** Minutos de reserva DigiTicket vigentes (fallback 180). */
+	public static function reserve_minutes(): int {
+		return max(1, (int) get_option('lty_settings_reserve_ticket_time_in_min', self::RESERVE_MINUTES));
 	}
 
 	/** Restaura opciones de reserve (llamar en rollback manual o vía WP-CLI). */
@@ -690,7 +704,7 @@ JS;
 
 		$product = wc_get_product($product_id);
 		if ($product && method_exists($product, 'get_reserved_tickets_data')) {
-			$reserve_minutes = max(1, (int) get_option('lty_settings_reserve_ticket_time_in_min', 30));
+			$reserve_minutes = self::reserve_minutes();
 			$now             = time();
 			$data            = $product->get_reserved_tickets_data();
 			if (is_array($data)) {
@@ -729,7 +743,7 @@ JS;
 		$keep = array();
 		$product = wc_get_product($product_id);
 		if ($product && method_exists($product, 'get_reserved_tickets_data')) {
-			$reserve_minutes = max(1, (int) get_option('lty_settings_reserve_ticket_time_in_min', 30));
+			$reserve_minutes = self::reserve_minutes();
 			$now             = time();
 			$data            = $product->get_reserved_tickets_data();
 			$active          = array();
@@ -832,7 +846,7 @@ JS;
 			return true;
 		}
 
-		$reserve_minutes = max(1, (int) get_option('lty_settings_reserve_ticket_time_in_min', 30));
+		$reserve_minutes = self::reserve_minutes();
 		$now             = time();
 		$data            = $product->get_reserved_tickets_data();
 		if (!is_array($data)) {
@@ -883,7 +897,7 @@ JS;
 			return false;
 		}
 		if ($reserve_minutes < 1) {
-			$reserve_minutes = max(1, (int) get_option('lty_settings_reserve_ticket_time_in_min', 30));
+			$reserve_minutes = self::reserve_minutes();
 		}
 		$now  = time();
 		$data = $product->get_reserved_tickets_data();
