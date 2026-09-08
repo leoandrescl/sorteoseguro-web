@@ -2,9 +2,11 @@
 /**
  * Plugin Name: Promo Engine (Stable 1.3.0) — Non-Stacking Logic
  * Description: Sistema de promociones con lógica de inventario virtual (no acumulable por ítem) y prioridad por volumen de compra (BxPy).
- * Version: 1.3.0-stable-p11
+ * Version: 1.3.0-stable-p12
  * p10: bonos fixed/% acumulables aplican sobre líneas DigiPack (ya no las bloquea el inventario BxPy).
  * p11: bonos fixed/% = fee único de carrito sin nombre de producto; min_total = total a pagar tras packs.
+ * p12: audiencia Brevo (desde/hasta + condición) y filtro “compró DigiTickets de estos sorteos”.
+ *      Filtros viejos intactos; si los nuevos están vacíos, el bono aplica como antes.
  */
 
 if (!defined('ABSPATH')) exit;
@@ -41,6 +43,12 @@ if (!class_exists('Promo_Engine_Stable')) :
             'target_lotteries'  => '_promo_target_lotteries',
             'product_badge'     => '_promo_product_badge',
             'product_sort'      => '_promo_product_sort',
+            // Audiencia masiva (igual Brevo). Vacío = no filtra.
+            'audience_condition' => '_promo_audience_condition',
+            'audience_from'      => '_promo_audience_from',
+            'audience_to'        => '_promo_audience_to',
+            // Historial pagado de DigiTickets por sorteo. Vacío = no filtra.
+            'bought_lotteries'   => '_promo_bought_lotteries',
         ];
 
         /** Packs activos en ficha: se les asignan todos los sorteos actuales una vez. */
@@ -49,6 +57,7 @@ if (!class_exists('Promo_Engine_Stable')) :
 
         const SESSION_APPLIED = 'promo_engine_applied_campaign_ids';
         const SESSION_SOURCE  = 'promo_engine_user_source'; // Tracking de origen persistente
+        const PAID_STATUSES   = ['completed', 'processing'];
 
         public function __construct() {
             add_action('init',                            [$this, 'register_cpt']);
@@ -250,6 +259,15 @@ if (!class_exists('Promo_Engine_Stable')) :
             $show_on_product   = $get('show_on_product', 'no');
             $product_badge     = $get('product_badge', '');
             $product_sort      = $get('product_sort', '10');
+            $audience_condition = $get('audience_condition', '');
+            $audience_from      = $get('audience_from', '');
+            $audience_to        = $get('audience_to', '');
+            $bought_lotteries   = get_post_meta($post->ID, self::META['bought_lotteries'], true);
+            if (!is_array($bought_lotteries)) {
+                $bought_lotteries = [];
+            }
+            $bought_lotteries = array_map('absint', $bought_lotteries);
+            $audience_conds = self::audience_conditions();
             ?>
                 <div class="promo-field">
                     <label>Lógica de Acumulación</label>
@@ -270,6 +288,12 @@ if (!class_exists('Promo_Engine_Stable')) :
                 .promo-separator { grid-column: 1 / -1; border-top: 1px solid #ddd; padding-top: 10px; margin-top: 10px; }
                 .promo-box-special { background: #f0f6fb; padding: 12px; border-radius: 4px; border: 1px solid #c3d4e3; grid-column: 1 / -1; margin-top: 10px; }
                 .promo-box-product { background: #f7faf4; padding: 12px; border-radius: 4px; border: 1px solid #c5d9b8; grid-column: 1 / -1; margin-top: 10px; }
+                .promo-box-audience { background: #f3ecff; padding: 12px; border-radius: 4px; border: 1px solid #d4c4f0; grid-column: 1 / -1; margin-top: 10px; }
+                .promo-box-bought { background: #fff8ef; padding: 12px; border-radius: 4px; border: 1px solid #e8d5b5; grid-column: 1 / -1; margin-top: 10px; }
+                .promo-audience-opt { display:block; border:1px solid #d4c4f0; border-radius:6px; padding:10px 12px; margin:0 0 8px; background:#fff; cursor:pointer; }
+                .promo-audience-opt.is-on { border-color:#6b3bb8; background:#f8f4ff; }
+                .promo-audience-opt strong { display:block; font-size:13px; margin:0 0 2px; }
+                .promo-audience-opt small { color:#666; font-size:12px; line-height:1.35; }
             </style>
 
             <div class="promo-grid">
@@ -482,6 +506,67 @@ if (!class_exists('Promo_Engine_Stable')) :
                     <p class="promo-hint">Si pones 3, el beneficio expira 3 días después de que el usuario creó su cuenta.</p>
                 </div>
 
+                <div class="promo-box-audience">
+                    <label style="color:#552c9a; display:block; margin-bottom:6px;">AUDIENCIA MASIVA (igual Exportar Brevo)</label>
+                    <p class="promo-hint" style="margin:0 0 10px;">Opcional. Si no eliges condición ni fechas, este bloque no filtra. Los filtros de arriba (manual, fuente, etc.) siguen igual.</p>
+                    <div class="promo-field" style="margin-bottom:10px;">
+                        <label>Condición</label>
+                        <select name="promo_audience_condition" id="promo_audience_condition" style="width:100%; max-width:480px;">
+                            <option value="" <?php selected($audience_condition, ''); ?>>Sin filtro de audiencia</option>
+                            <?php foreach ($audience_conds as $akey => $aitem) : ?>
+                                <option value="<?php echo esc_attr($akey); ?>" <?php selected($audience_condition, $akey); ?>><?php echo esc_html($aitem['label']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div id="promo_audience_dates" style="<?php echo $audience_condition === '' ? 'display:none;' : ''; ?>">
+                        <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:10px;">
+                            <div class="promo-field" style="flex:0 0 180px;">
+                                <label>Desde</label>
+                                <input type="date" name="promo_audience_from" value="<?php echo esc_attr($audience_from); ?>" style="width:100%;" />
+                            </div>
+                            <div class="promo-field" style="flex:0 0 180px;">
+                                <label>Hasta</label>
+                                <input type="date" name="promo_audience_to" value="<?php echo esc_attr($audience_to); ?>" style="width:100%;" />
+                            </div>
+                        </div>
+                        <div id="promo_audience_helps">
+                            <?php foreach ($audience_conds as $akey => $aitem) : ?>
+                                <p class="promo-hint promo-audience-help" data-cond="<?php echo esc_attr($akey); ?>" style="<?php echo $audience_condition === $akey ? '' : 'display:none;'; ?>"><?php echo esc_html($aitem['help']); ?></p>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="promo-box-bought">
+                    <label style="color:#8a5a12; display:block; margin-bottom:6px;">COMPRÓ DIGITICKETS DE ESTOS SORTEOS</label>
+                    <p class="promo-hint" style="margin:0 0 8px;">Opcional. Historial pagado (Completado o Procesando). Si marcas varios, basta con haber comprado <strong>uno</strong>. Vacío = no filtra por sorteo.</p>
+                    <?php
+                    $lotteries_bought = self::get_lottery_products_for_admin();
+                    $selected_bought = array_map('absint', (array) $bought_lotteries);
+                    ?>
+                    <input type="hidden" name="promo_bought_lotteries_present" value="1" />
+                    <p style="margin:0 0 8px;">
+                        <button type="button" class="button promo-bought-all">Seleccionar todos</button>
+                        <button type="button" class="button promo-bought-none">Ninguno</button>
+                    </p>
+                    <div class="promo-bought-list" style="max-height:220px; overflow:auto; border:1px solid #e8d5b5; background:#fff; padding:8px 10px; border-radius:4px;">
+                        <?php if (empty($lotteries_bought)) : ?>
+                            <p class="promo-hint" style="margin:0;">No se encontraron sorteos.</p>
+                        <?php else : ?>
+                            <?php foreach ($lotteries_bought as $lot) :
+                                $lid = (int) $lot['id'];
+                                $checked = in_array($lid, $selected_bought, true);
+                                $status_label = ($lot['status'] !== 'publish') ? ' (' . $lot['status'] . ')' : '';
+                                ?>
+                                <label style="display:flex; align-items:flex-start; gap:8px; font-weight:500; margin:0 0 6px;">
+                                    <input type="checkbox" class="promo-bought-cb" name="promo_bought_lotteries[]" value="<?php echo esc_attr((string) $lid); ?>" <?php checked($checked); ?> />
+                                    <span><?php echo esc_html($lot['title'] . $status_label); ?> <span style="color:#888; font-weight:400;">#<?php echo (int) $lid; ?></span></span>
+                                </label>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
                 <script>
                     jQuery(function($){
                         function toggleSegmentFields(){
@@ -499,6 +584,24 @@ if (!class_exists('Promo_Engine_Stable')) :
                         }
                         toggleSegmentFields();
                         $('#main_segment_selector').on('change', toggleSegmentFields);
+
+                        function toggleAudience(){
+                            var c = $('#promo_audience_condition').val() || '';
+                            $('#promo_audience_dates').toggle(c !== '');
+                            $('.promo-audience-help').hide();
+                            if (c) $('.promo-audience-help[data-cond="'+c+'"]').show();
+                        }
+                        toggleAudience();
+                        $('#promo_audience_condition').on('change', toggleAudience);
+
+                        $('.promo-bought-all').on('click', function(e){
+                            e.preventDefault();
+                            $('.promo-bought-cb').prop('checked', true);
+                        });
+                        $('.promo-bought-none').on('click', function(e){
+                            e.preventDefault();
+                            $('.promo-bought-cb').prop('checked', false);
+                        });
                     });
                 </script>
 
@@ -570,6 +673,28 @@ if (!class_exists('Promo_Engine_Stable')) :
                 $target_lotteries = isset($_POST['promo_target_lotteries']) ? array_values(array_unique(array_map('absint', (array) $_POST['promo_target_lotteries']))) : [];
                 $target_lotteries = array_values(array_filter($target_lotteries));
                 $update('target_lotteries', $target_lotteries);
+            }
+
+            $aud_cond = sanitize_key($_POST['promo_audience_condition'] ?? '');
+            if ($aud_cond !== '' && !isset(self::audience_conditions()[ $aud_cond ])) {
+                $aud_cond = '';
+            }
+            $update('audience_condition', $aud_cond);
+            $aud_from = sanitize_text_field($_POST['promo_audience_from'] ?? '');
+            $aud_to   = sanitize_text_field($_POST['promo_audience_to'] ?? '');
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $aud_from)) {
+                $aud_from = '';
+            }
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $aud_to)) {
+                $aud_to = '';
+            }
+            $update('audience_from', $aud_from);
+            $update('audience_to', $aud_to);
+
+            if (isset($_POST['promo_bought_lotteries_present'])) {
+                $bought = isset($_POST['promo_bought_lotteries']) ? array_values(array_unique(array_map('absint', (array) $_POST['promo_bought_lotteries']))) : [];
+                $bought = array_values(array_filter($bought));
+                $update('bought_lotteries', $bought);
             }
         }
 
@@ -978,54 +1103,312 @@ if (!class_exists('Promo_Engine_Stable')) :
             $stype = get_post_meta($campaign_id, self::META['segment_type'], true) ?: 'all';
             $sdata = get_post_meta($campaign_id, self::META['segment_data'], true);
 
-            if ($stype === 'all') return true;
+            if ($stype !== 'all') {
+                $user_in_segment = false;
+                switch ($stype) {
+                    case 'traffic_source':
+                        $captured_source = '';
+                        if (WC()->session) {
+                            $captured_source = (string) WC()->session->get(self::SESSION_SOURCE);
+                        }
+                        // Fallback: si el usuario ya estaba registrado y la sesión no tiene la fuente,
+                        // consultar user meta guardado al momento del registro.
+                        if (empty($captured_source) && $user_id) {
+                            $captured_source = (string) get_user_meta($user_id, 'pe_registration_source', true);
+                        }
+                        if (!empty($captured_source) && strtolower($captured_source) === strtolower(trim($sdata))) {
+                            $user_in_segment = true;
+                        }
+                        break;
+                    case 'manual':
+                        if (empty($sdata)) break;
+                        $items = array_map('trim', explode(',', (string)$sdata));
+                        foreach ($items as $item) {
+                            if (is_numeric($item) && (int)$user_id === (int)$item) { $user_in_segment = true; break; }
+                            if (is_email($item) && $user_id) {
+                                $ud = get_userdata($user_id);
+                                if ($ud && strtolower($ud->user_email) === strtolower($item)) { $user_in_segment = true; break; }
+                            }
+                        }
+                        break;
+                    case 'comment_post':
+                        $post_id = absint($sdata);
+                        if ($post_id && $user_id && get_comments(['post_id'=>$post_id,'user_id'=>$user_id,'count'=>true,'status'=>'approve'])) $user_in_segment = true;
+                        break;
+                    case 'abandoned_cart':
+                        if ($user_id && apply_filters('promo_engine_is_abandoned_cart_user', false, $user_id, $campaign_id)) $user_in_segment = true;
+                        break;
+                    case 'reg_before':
+                        if (!$user_id) break;
+                        $before_date = get_post_meta($campaign_id, self::META['reg_before_date'], true);
+                        if (empty($before_date)) break;
+                        $limit_ts = self::parse_wp_datetime($before_date, false);
+                        $ud = get_userdata($user_id);
+                        if ($ud && strtotime($ud->user_registered) < $limit_ts) {
+                            $user_in_segment = true;
+                        }
+                        break;
+                }
+                if (!$user_in_segment) {
+                    return false;
+                }
+            }
 
-            $user_in_segment = false;
-            switch ($stype) {
-                case 'traffic_source':
-                    $captured_source = '';
-                    if (WC()->session) {
-                        $captured_source = (string) WC()->session->get(self::SESSION_SOURCE);
-                    }
-                    // Fallback: si el usuario ya estaba registrado y la sesión no tiene la fuente,
-                    // consultar user meta guardado al momento del registro.
-                    if (empty($captured_source) && $user_id) {
-                        $captured_source = (string) get_user_meta($user_id, 'pe_registration_source', true);
-                    }
-                    if (!empty($captured_source) && strtolower($captured_source) === strtolower(trim($sdata))) {
-                        $user_in_segment = true;
-                    }
+            // Audiencia Brevo + historial de sorteos (opcionales; vacío = no filtran).
+            if (!$this->user_matches_audience($campaign_id, $user_id)) {
+                return false;
+            }
+            if (!$this->user_matches_bought_lotteries($campaign_id, $user_id)) {
+                return false;
+            }
+
+            return true;
+        }
+
+        /**
+         * Condiciones de audiencia masiva (mismas claves/textos que Exportar Brevo).
+         *
+         * @return array<string, array{label:string,help:string}>
+         */
+        public static function audience_conditions(): array {
+            return [
+                'registrados' => [
+                    'label' => 'Registrados en el período',
+                    'help'  => 'Cuentas creadas entre esas fechas, hayan comprado o no.',
+                ],
+                'compradores' => [
+                    'label' => 'Compradores en el período',
+                    'help'  => 'Quienes pagaron un pedido (Completado o Procesando) en esas fechas, con cuenta o guest.',
+                ],
+                'registrados_y_compraron' => [
+                    'label' => 'Registrados que compraron',
+                    'help'  => 'Cuentas creadas en el período y que además compraron en el mismo período.',
+                ],
+                'registrados_mas_compradores' => [
+                    'label' => 'Registrados + compradores',
+                    'help'  => 'Unión: cuentas nuevas en el período y quienes compraron en el período (aunque la cuenta sea anterior o sea guest).',
+                ],
+                'registrados_sin_compra' => [
+                    'label' => 'Registrados que no compraron',
+                    'help'  => 'Cuentas creadas en el período sin pedido pagado en esas fechas.',
+                ],
+            ];
+        }
+
+        /**
+         * Email del cliente en carrito/checkout (logueado o guest con billing).
+         */
+        private function resolve_customer_email($user_id): string {
+            $user_id = (int) $user_id;
+            if ($user_id) {
+                $ud = get_userdata($user_id);
+                if ($ud && is_email($ud->user_email)) {
+                    return strtolower(trim((string) $ud->user_email));
+                }
+            }
+            if (function_exists('WC') && WC()->customer) {
+                $email = strtolower(trim((string) WC()->customer->get_billing_email()));
+                if ($email !== '' && is_email($email)) {
+                    return $email;
+                }
+            }
+            if (!empty($_POST['billing_email'])) {
+                $email = strtolower(trim((string) wp_unslash($_POST['billing_email'])));
+                if ($email !== '' && is_email($email)) {
+                    return $email;
+                }
+            }
+            return '';
+        }
+
+        /**
+         * true si no hay filtro de audiencia, o si el cliente cumple condición + fechas.
+         */
+        private function user_matches_audience($campaign_id, $user_id): bool {
+            $cond = sanitize_key((string) get_post_meta($campaign_id, self::META['audience_condition'], true));
+            if ($cond === '' || !isset(self::audience_conditions()[ $cond ])) {
+                return true;
+            }
+            $from = (string) get_post_meta($campaign_id, self::META['audience_from'], true);
+            $to   = (string) get_post_meta($campaign_id, self::META['audience_to'], true);
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) || $from > $to) {
+                // Condición elegida pero fechas inválidas: no aplicar bono (evita abrir a todos por error).
+                return false;
+            }
+
+            $cache_key = $campaign_id . '|' . (int) $user_id . '|' . $this->resolve_customer_email($user_id) . '|' . $cond . '|' . $from . '|' . $to;
+            static $cache = [];
+            if (array_key_exists($cache_key, $cache)) {
+                return $cache[ $cache_key ];
+            }
+
+            $is_registered = $this->user_registered_in_period((int) $user_id, $from, $to);
+            $is_buyer      = $this->customer_bought_in_period((int) $user_id, $this->resolve_customer_email($user_id), $from, $to);
+
+            switch ($cond) {
+                case 'registrados':
+                    $ok = $is_registered;
                     break;
-                case 'manual':
-                    if (empty($sdata)) break;
-                    $items = array_map('trim', explode(',', (string)$sdata));
-                    foreach ($items as $item) {
-                        if (is_numeric($item) && (int)$user_id === (int)$item) { $user_in_segment = true; break; }
-                        if (is_email($item) && $user_id) {
-                            $ud = get_userdata($user_id);
-                            if ($ud && strtolower($ud->user_email) === strtolower($item)) { $user_in_segment = true; break; }
+                case 'compradores':
+                    $ok = $is_buyer;
+                    break;
+                case 'registrados_y_compraron':
+                    $ok = $is_registered && $is_buyer;
+                    break;
+                case 'registrados_mas_compradores':
+                    $ok = $is_registered || $is_buyer;
+                    break;
+                case 'registrados_sin_compra':
+                    $ok = $is_registered && !$is_buyer;
+                    break;
+                default:
+                    $ok = true;
+            }
+
+            $cache[ $cache_key ] = $ok;
+            return $ok;
+        }
+
+        private function user_registered_in_period($user_id, string $from, string $to): bool {
+            $user_id = (int) $user_id;
+            if ($user_id <= 0) {
+                return false;
+            }
+            $ud = get_userdata($user_id);
+            if (!$ud) {
+                return false;
+            }
+            $reg_gmt = strtotime($ud->user_registered);
+            if (!$reg_gmt) {
+                return false;
+            }
+            $after  = strtotime(get_gmt_from_date($from . ' 00:00:00'));
+            $before = strtotime(get_gmt_from_date($to . ' 23:59:59'));
+            if (!$after || !$before) {
+                return false;
+            }
+            return ($reg_gmt >= $after && $reg_gmt <= $before);
+        }
+
+        private function customer_bought_in_period($user_id, string $email, string $from, string $to): bool {
+            if (!function_exists('wc_get_orders')) {
+                return false;
+            }
+            $user_id = (int) $user_id;
+            $email   = strtolower(trim($email));
+            if ($user_id <= 0 && $email === '') {
+                return false;
+            }
+
+            $base = [
+                'limit'        => 1,
+                'page'         => 1,
+                'status'       => self::PAID_STATUSES,
+                'type'         => 'shop_order',
+                'return'       => 'ids',
+                'date_created' => $from . '...' . $to,
+            ];
+
+            if ($user_id > 0) {
+                $ids = wc_get_orders(array_merge($base, ['customer_id' => $user_id]));
+                if (!empty($ids)) {
+                    return true;
+                }
+            }
+            if ($email !== '' && is_email($email)) {
+                $ids = wc_get_orders(array_merge($base, ['billing_email' => $email]));
+                if (!empty($ids)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * true si no hay sorteos marcados, o si el cliente pagó DigiTickets de al menos uno.
+         */
+        private function user_matches_bought_lotteries($campaign_id, $user_id): bool {
+            $raw = get_post_meta($campaign_id, self::META['bought_lotteries'], true);
+            if (!is_array($raw) || !$raw) {
+                return true;
+            }
+            $product_ids = array_values(array_unique(array_filter(array_map('absint', $raw))));
+            if (!$product_ids) {
+                return true;
+            }
+
+            $email = $this->resolve_customer_email($user_id);
+            $cache_key = $campaign_id . '|bought|' . (int) $user_id . '|' . $email . '|' . implode(',', $product_ids);
+            static $cache = [];
+            if (array_key_exists($cache_key, $cache)) {
+                return $cache[ $cache_key ];
+            }
+
+            $ok = $this->customer_bought_any_products((int) $user_id, $email, $product_ids);
+            $cache[ $cache_key ] = $ok;
+            return $ok;
+        }
+
+        /**
+         * Historial pagado (Completado/Procesando) que incluye alguno de los product_id.
+         */
+        private function customer_bought_any_products($user_id, string $email, array $product_ids): bool {
+            if (!function_exists('wc_get_orders') || !$product_ids) {
+                return false;
+            }
+            $user_id = (int) $user_id;
+            $email   = strtolower(trim($email));
+            if ($user_id <= 0 && $email === '') {
+                return false;
+            }
+
+            $lookups = [];
+            if ($user_id > 0) {
+                $lookups[] = ['customer_id' => $user_id];
+            }
+            if ($email !== '' && is_email($email)) {
+                $lookups[] = ['billing_email' => $email];
+            }
+
+            $seen = [];
+            foreach ($lookups as $extra) {
+                $page = 1;
+                do {
+                    $args = array_merge([
+                        'limit'  => 50,
+                        'page'   => $page,
+                        'status' => self::PAID_STATUSES,
+                        'type'   => 'shop_order',
+                        'return' => 'objects',
+                        'orderby'=> 'date',
+                        'order'  => 'DESC',
+                    ], $extra);
+                    $batch = wc_get_orders($args);
+                    if (!is_array($batch)) {
+                        $batch = [];
+                    }
+                    foreach ($batch as $order) {
+                        if (!is_object($order) || !method_exists($order, 'get_id')) {
+                            continue;
+                        }
+                        $oid = (int) $order->get_id();
+                        if (isset($seen[ $oid ])) {
+                            continue;
+                        }
+                        $seen[ $oid ] = true;
+                        foreach ($order->get_items('line_item') as $item) {
+                            $pid = (int) $item->get_product_id();
+                            $vid = (int) $item->get_variation_id();
+                            if (in_array($pid, $product_ids, true) || ($vid && in_array($vid, $product_ids, true))) {
+                                return true;
+                            }
                         }
                     }
-                    break;
-                case 'comment_post':
-                    $post_id = absint($sdata);
-                    if ($post_id && $user_id && get_comments(['post_id'=>$post_id,'user_id'=>$user_id,'count'=>true,'status'=>'approve'])) $user_in_segment = true;
-                    break;
-                case 'abandoned_cart':
-                    if ($user_id && apply_filters('promo_engine_is_abandoned_cart_user', false, $user_id, $campaign_id)) $user_in_segment = true;
-                    break;
-                case 'reg_before':
-                    if (!$user_id) break;
-                    $before_date = get_post_meta($campaign_id, self::META['reg_before_date'], true);
-                    if (empty($before_date)) break;
-                    $limit_ts = self::parse_wp_datetime($before_date, false);
-                    $ud = get_userdata($user_id);
-                    if ($ud && strtotime($ud->user_registered) < $limit_ts) {
-                        $user_in_segment = true;
-                    }
-                    break;
+                    $page++;
+                } while (count($batch) === 50 && $page <= 20);
             }
-            return $user_in_segment;
+
+            return false;
         }
 
         /* -------------------- Cálculo descuento -------------------- */
