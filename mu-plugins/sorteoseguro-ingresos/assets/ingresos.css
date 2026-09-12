@@ -2,6 +2,7 @@
 .ss-ing p,
 .ss-ing h1,
 .ss-ing h2,
+.ss-ing h3,
 .ss-ing th,
 .ss-ing td,
 .ss-ing label,
@@ -31,12 +32,25 @@
 	font-weight: 800;
 }
 
+.ss-ing h3.ss-ing__h3 {
+	margin: 18px 0 10px;
+	font-size: 14px;
+	font-weight: 700;
+}
+
 .ss-ing__lead {
 	max-width: 820px;
 	margin: 0 0 18px;
 	color: var(--ss-ing-muted);
 	font-size: 14px;
 	line-height: 1.45;
+}
+
+.ss-ing__section-lead {
+	margin: -4px 0 12px;
+	color: var(--ss-ing-muted);
+	font-size: 12px;
+	line-height: 1.4;
 }
 
 .ss-ing__filters {
@@ -93,7 +107,7 @@
 
 .ss-ing__kpis {
 	display: grid;
-	grid-template-columns: repeat(5, minmax(0, 1fr));
+	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: 12px;
 	margin: 0 0 18px;
 }
@@ -144,12 +158,24 @@
 	margin: 0 0 18px;
 }
 
+.ss-ing__hours,
+.ss-ing__weekdays,
+.ss-ing__payment,
+.ss-ing__packs,
+.ss-ing__customers {
+	margin: 0 0 18px;
+}
+
 .ss-ing__chart,
 .ss-ing__table-card {
 	background: #fff;
 	border: 1px solid var(--ss-ing-line);
 	border-radius: var(--ss-ing-radius);
 	padding: 16px;
+}
+
+.ss-ing__chart--wide {
+	width: 100%;
 }
 
 .ss-ing h2 {
@@ -167,11 +193,18 @@
 	border-bottom: 1px solid var(--ss-ing-line);
 }
 
+.ss-ing__bars--weekdays {
+	height: 200px;
+	gap: 8px;
+}
+
 .ss-ing__bar-wrap {
 	flex: 1;
 	height: 100%;
 	display: flex;
-	align-items: flex-end;
+	flex-direction: column;
+	align-items: stretch;
+	justify-content: flex-end;
 }
 
 .ss-ing__bar {
@@ -180,6 +213,14 @@
 	background: var(--ss-ing-purple);
 	border-radius: 3px 3px 0 0;
 	min-height: 0;
+}
+
+.ss-ing__bar-label {
+	display: block;
+	margin-top: 6px;
+	font-size: 11px;
+	color: var(--ss-ing-muted);
+	text-align: center;
 }
 
 .ss-ing__bar-axis {
@@ -195,33 +236,19 @@
 	text-align: center;
 }
 
-.ss-ing__hours {
-	margin: 0 0 18px;
-}
-
-.ss-ing__chart--hours {
-	width: 100%;
-}
-
-.ss-ing__hours-lead {
-	margin: -4px 0 10px;
-	color: var(--ss-ing-muted);
-	font-size: 12px;
+.ss-ing__peaks {
+	display: grid;
+	gap: 6px;
+	margin: 0 0 12px;
 }
 
 .ss-ing__peak {
-	margin: 0 0 6px;
+	margin: 0;
 	padding: 10px 12px;
 	background: var(--ss-ing-soft);
 	border-radius: var(--ss-ing-radius-ui);
 	font-size: 13px;
 	color: var(--ss-ing-text);
-}
-
-.ss-ing__peak-more {
-	margin: 0 0 12px;
-	font-size: 12px;
-	color: var(--ss-ing-muted);
 }
 
 .ss-ing__bars--hours {
@@ -232,14 +259,56 @@
 	background: var(--ss-ing-purple-dark);
 }
 
+.ss-ing__bar-wrap.is-peak-2 .ss-ing__bar {
+	background: var(--ss-ing-purple);
+	opacity: 0.88;
+}
+
+.ss-ing__bar-wrap.is-peak-3 .ss-ing__bar {
+	background: #8b6fd0;
+}
+
 .ss-ing__bar-axis--hours {
 	font-size: 10px;
+}
+
+.ss-ing__pay-summary {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10px;
+	margin: 0 0 14px;
+}
+
+.ss-ing__pay-stat {
+	background: var(--ss-ing-soft);
+	border-radius: var(--ss-ing-radius-ui);
+	padding: 10px 12px;
+}
+
+.ss-ing__pay-stat span {
+	display: block;
+	font-size: 11px;
+	color: var(--ss-ing-muted);
+	margin-bottom: 4px;
+}
+
+.ss-ing__pay-stat strong {
+	font-size: 18px;
+	font-weight: 800;
+}
+
+.ss-ing__pay-stat--highlight {
+	background: #efebfa;
 }
 
 .ss-ing__table {
 	width: 100%;
 	border-collapse: collapse;
 	font-size: 13px;
+}
+
+.ss-ing__table--compact {
+	margin-top: 12px;
 }
 
 .ss-ing__table th,
@@ -273,12 +342,17 @@
 	.ss-ing__kpis {
 		grid-template-columns: repeat(3, minmax(0, 1fr));
 	}
+
+	.ss-ing__pay-summary {
+		grid-template-columns: 1fr;
+	}
 }
 
 @media (max-width: 782px) {
 	.ss-ing__kpis,
 	.ss-ing__charts,
-	.ss-ing__tables {
+	.ss-ing__tables,
+	.ss-ing__pay-summary {
 		grid-template-columns: 1fr;
 	}
 }
