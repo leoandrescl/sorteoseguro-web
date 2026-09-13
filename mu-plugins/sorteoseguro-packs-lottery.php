@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Packs_Lottery {
 
-	const VERSION        = '1.3.30';
+	const VERSION        = '1.3.31';
 	const AJAX_ACTION    = 'ss_packs_select';
 	const NONCE_ACTION   = 'ss_packs_lottery';
 	const LOCK_PREFIX    = 'ss_pack_lock_';
@@ -582,22 +582,38 @@ JS;
 			return 0;
 		}
 
-		$show = get_post_meta($campaign_id, '_promo_show_on_product', true);
-		if ($show !== 'yes' || get_post_status($campaign_id) !== 'publish') {
+		if (get_post_status($campaign_id) !== 'publish') {
 			return 0;
 		}
 
-		if (method_exists('Promo_Engine_Stable', 'campaign_targets_product')
-			&& !Promo_Engine_Stable::campaign_targets_product($campaign_id, $product_id)) {
+		$show         = get_post_meta($campaign_id, '_promo_show_on_product', true);
+		$show_preload = get_post_meta($campaign_id, '_promo_show_on_preload', true);
+		if ($show !== 'yes' && $show_preload !== 'yes') {
 			return 0;
 		}
 
-		$campaigns = Promo_Engine_Stable::get_product_page_campaigns($product_id);
-		foreach ($campaigns as $c) {
-			if ((int) $c['id'] === $campaign_id) {
-				return max(1, (int) $c['buy']);
+		if ($show === 'yes') {
+			if (method_exists('Promo_Engine_Stable', 'campaign_targets_product')
+				&& !Promo_Engine_Stable::campaign_targets_product($campaign_id, $product_id)) {
+				return 0;
+			}
+			$campaigns = Promo_Engine_Stable::get_product_page_campaigns($product_id);
+			foreach ($campaigns as $c) {
+				if ((int) $c['id'] === $campaign_id) {
+					return max(1, (int) $c['buy']);
+				}
 			}
 		}
+
+		if ($show_preload === 'yes' && method_exists('Promo_Engine_Stable', 'get_preload_page_campaigns')) {
+			$campaigns = Promo_Engine_Stable::get_preload_page_campaigns($product_id);
+			foreach ($campaigns as $c) {
+				if ((int) $c['id'] === $campaign_id) {
+					return max(1, (int) $c['buy']);
+				}
+			}
+		}
+
 		return 0;
 	}
 

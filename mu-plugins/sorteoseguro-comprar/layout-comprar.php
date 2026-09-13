@@ -39,6 +39,13 @@ $ss = array_merge([
 $sales_open = isset($sales_open) ? (bool) $sales_open : true;
 $checkout_ready = isset($checkout_ready) ? (bool) $checkout_ready : $sales_open;
 
+$ss_buy_class = 'SorteoSeguro_Comprar';
+if (class_exists('SorteoSeguro_Comprar_Bono') && SorteoSeguro_Comprar_Bono::is_oferta_child()) {
+	$ss_buy_class = 'SorteoSeguro_Comprar_Bono';
+} elseif (!class_exists('SorteoSeguro_Comprar')) {
+	$ss_buy_class = '';
+}
+
 $gallery_ids = [];
 $thumb_id    = (int) $product->get_image_id();
 if ($thumb_id) {
@@ -117,7 +124,7 @@ $resolve_prize_image = static function ($image) use ($gallery) {
 		<div class="ss-comprar-checkout-wrap">
 			<section
 				id="ss-comprar-checkout"
-				class="ss-comprar-checkout is-ready<?php echo (class_exists('SorteoSeguro_Comprar') && SorteoSeguro_Comprar::cart_has_current_product()) ? '' : ' is-preload'; ?>"
+				class="ss-comprar-checkout is-ready<?php echo ($ss_buy_class !== '' && class_exists($ss_buy_class) && $ss_buy_class::cart_has_current_product()) ? '' : ' is-preload'; ?>"
 			>
 				<div class="ss-comprar-checkout__head">
 					<h2>Finaliza tu compra</h2>
@@ -125,10 +132,10 @@ $resolve_prize_image = static function ($image) use ($gallery) {
 				</div>
 				<div class="ss-comprar-checkout__form">
 					<?php
-					if (class_exists('SorteoSeguro_Comprar')) {
-						SorteoSeguro_Comprar::render_embedded_checkout();
-						if (SorteoSeguro_Comprar::cart_has_current_product()) {
-							SorteoSeguro_Comprar::maybe_enqueue_wc_checkout_with_cart();
+					if ($ss_buy_class !== '' && class_exists($ss_buy_class)) {
+						$ss_buy_class::render_embedded_checkout();
+						if ($ss_buy_class::cart_has_current_product()) {
+							$ss_buy_class::maybe_enqueue_wc_checkout_with_cart();
 						}
 					} elseif (function_exists('woocommerce_checkout')) {
 						woocommerce_checkout();

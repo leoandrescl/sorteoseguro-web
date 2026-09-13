@@ -2,11 +2,13 @@
 /**
  * Plugin Name: Promo Engine (Stable 1.3.0) — Non-Stacking Logic
  * Description: Sistema de promociones con lógica de inventario virtual (no acumulable por ítem) y prioridad por volumen de compra (BxPy).
- * Version: 1.3.0-stable-p12
+ * Version: 1.3.0-stable-p13
  * p10: bonos fixed/% acumulables aplican sobre líneas DigiPack (ya no las bloquea el inventario BxPy).
  * p11: bonos fixed/% = fee único de carrito sin nombre de producto; min_total = total a pagar tras packs.
  * p12: audiencia Brevo (desde/hasta + condición) y filtro “compró DigiTickets de estos sorteos”.
  *      Filtros viejos intactos; si los nuevos están vacíos, el bono aplica como antes.
+ * p13: página bono precargado (/oferta/): DigiPacks visibles + bonos fixed/% solo con sesión de landing.
+ *      Ficha/comprar y filtros previos intactos.
  */
 
 if (!defined('ABSPATH')) exit;
@@ -43,6 +45,9 @@ if (!class_exists('Promo_Engine_Stable')) :
             'target_lotteries'  => '_promo_target_lotteries',
             'product_badge'     => '_promo_product_badge',
             'product_sort'      => '_promo_product_sort',
+            // Página /oferta/ (bono precargado). Independiente de ficha.
+            'show_on_preload'   => '_promo_show_on_preload',
+            'preload_lotteries' => '_promo_preload_lotteries',
             // Audiencia masiva (igual Brevo). Vacío = no filtra.
             'audience_condition' => '_promo_audience_condition',
             'audience_from'      => '_promo_audience_from',
@@ -57,6 +62,8 @@ if (!class_exists('Promo_Engine_Stable')) :
 
         const SESSION_APPLIED = 'promo_engine_applied_campaign_ids';
         const SESSION_SOURCE  = 'promo_engine_user_source'; // Tracking de origen persistente
+        /** Producto DigiTicket de la landing /oferta/{slug}/ visitada en esta sesión. */
+        const SESSION_PRELOAD_PRODUCT = 'ss_preload_product_id';
         const PAID_STATUSES   = ['completed', 'processing'];
 
         public function __construct() {
@@ -259,6 +266,7 @@ if (!class_exists('Promo_Engine_Stable')) :
             $show_on_product   = $get('show_on_product', 'no');
             $product_badge     = $get('product_badge', '');
             $product_sort      = $get('product_sort', '10');
+            $show_on_preload   = $get('show_on_preload', 'no');
             $audience_condition = $get('audience_condition', '');
             $audience_from      = $get('audience_from', '');
             $audience_to        = $get('audience_to', '');
@@ -288,6 +296,7 @@ if (!class_exists('Promo_Engine_Stable')) :
                 .promo-separator { grid-column: 1 / -1; border-top: 1px solid #ddd; padding-top: 10px; margin-top: 10px; }
                 .promo-box-special { background: #f0f6fb; padding: 12px; border-radius: 4px; border: 1px solid #c3d4e3; grid-column: 1 / -1; margin-top: 10px; }
                 .promo-box-product { background: #f7faf4; padding: 12px; border-radius: 4px; border: 1px solid #c5d9b8; grid-column: 1 / -1; margin-top: 10px; }
+                .promo-box-preload { background: #eef6ff; padding: 12px; border-radius: 4px; border: 1px solid #b7d0ef; grid-column: 1 / -1; margin-top: 10px; }
                 .promo-box-audience { background: #f3ecff; padding: 12px; border-radius: 4px; border: 1px solid #d4c4f0; grid-column: 1 / -1; margin-top: 10px; }
                 .promo-box-bought { background: #fff8ef; padding: 12px; border-radius: 4px; border: 1px solid #e8d5b5; grid-column: 1 / -1; margin-top: 10px; }
                 .promo-audience-opt { display:block; border:1px solid #d4c4f0; border-radius:6px; padding:10px 12px; margin:0 0 8px; background:#fff; cursor:pointer; }
@@ -364,6 +373,69 @@ if (!class_exists('Promo_Engine_Stable')) :
                             <p class="promo-hint">Menor = primero.</p>
                         </div>
                     </div>
+                </div>
+
+                <div class="promo-box-preload">
+                    <label style="color:#1e4f8a; display:block; margin-bottom:8px;">PÁGINA BONO PRECARGADO (/oferta/)</label>
+                    <label style="font-weight:600; display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                        <input type="checkbox" name="promo_show_on_preload" value="yes" id="promo_show_on_preload" <?php checked($show_on_preload, 'yes'); ?> />
+                        Incluir en página de bono precargado
+                    </label>
+                    <p class="promo-hint" style="margin-top:0;">
+                        DigiPack (3x2 / 5x3 / etc.): se muestra solo en /oferta/ de esos sorteos (no cambia la ficha).<br>
+                        Bono fijo o %: se aplica automáticamente al entrar por ese link (más el resto de filtros de esta campaña). Sin visitar /oferta/, este bono no corre.
+                    </p>
+                    <?php
+                    $raw_preload = get_post_meta($post->ID, self::META['preload_lotteries'], true);
+                    $preload_configured = is_array($raw_preload);
+                    $selected_preload_ids = $preload_configured ? array_map('absint', (array) $raw_preload) : [];
+                    if (!$lotteries) {
+                        $lotteries = self::get_lottery_products_for_admin();
+                    }
+                    ?>
+                    <input type="hidden" name="promo_preload_lotteries_present" value="1" />
+                    <div class="promo-preload-lotteries" style="margin:10px 0 4px;">
+                        <label style="margin-bottom:6px;">Sorteos de la página /oferta/</label>
+                        <p class="promo-hint" style="margin:0 0 8px;">Ej.: Jeep Avenger → la campaña aparece o aplica en /oferta/jeep-avenger/.</p>
+                        <p style="margin:0 0 8px;">
+                            <button type="button" class="button promo-preload-all">Seleccionar todos</button>
+                            <button type="button" class="button promo-preload-none">Ninguno</button>
+                        </p>
+                        <div class="promo-preload-list" style="max-height:240px; overflow:auto; border:1px solid #b7d0ef; background:#fff; padding:8px 10px; border-radius:4px;">
+                            <?php if (empty($lotteries)) : ?>
+                                <p class="promo-hint" style="margin:0;">No se encontraron sorteos (productos lottery).</p>
+                            <?php else : ?>
+                                <?php foreach ($lotteries as $lot) :
+                                    $lid = (int) $lot['id'];
+                                    $checked = in_array($lid, $selected_preload_ids, true);
+                                    $status_label = ($lot['status'] !== 'publish') ? ' (' . $lot['status'] . ')' : '';
+                                    ?>
+                                    <label style="display:flex; align-items:flex-start; gap:8px; font-weight:500; margin:0 0 6px;">
+                                        <input type="checkbox" class="promo-preload-cb" name="promo_preload_lotteries[]" value="<?php echo esc_attr((string) $lid); ?>" <?php checked($checked); ?> />
+                                        <span><?php echo esc_html($lot['title'] . $status_label); ?> <span style="color:#888; font-weight:400;">#<?php echo (int) $lid; ?></span></span>
+                                    </label>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <script>
+                    jQuery(function($){
+                        var $box = $('.promo-preload-lotteries');
+                        function syncPreloadLock(){
+                            $box.css('opacity', $('#promo_show_on_preload').is(':checked') ? 1 : 0.55);
+                        }
+                        $('.promo-preload-all').on('click', function(e){
+                            e.preventDefault();
+                            $box.find('.promo-preload-cb').prop('checked', true);
+                        });
+                        $('.promo-preload-none').on('click', function(e){
+                            e.preventDefault();
+                            $box.find('.promo-preload-cb').prop('checked', false);
+                        });
+                        $('#promo_show_on_preload').on('change', syncPreloadLock);
+                        syncPreloadLock();
+                    });
+                    </script>
                 </div>
 
                 <div class="promo-field">
@@ -673,6 +745,13 @@ if (!class_exists('Promo_Engine_Stable')) :
                 $target_lotteries = isset($_POST['promo_target_lotteries']) ? array_values(array_unique(array_map('absint', (array) $_POST['promo_target_lotteries']))) : [];
                 $target_lotteries = array_values(array_filter($target_lotteries));
                 $update('target_lotteries', $target_lotteries);
+            }
+
+            $update('show_on_preload', isset($_POST['promo_show_on_preload']) && $_POST['promo_show_on_preload'] === 'yes' ? 'yes' : 'no');
+            if (isset($_POST['promo_preload_lotteries_present'])) {
+                $preload_lotteries = isset($_POST['promo_preload_lotteries']) ? array_values(array_unique(array_map('absint', (array) $_POST['promo_preload_lotteries']))) : [];
+                $preload_lotteries = array_values(array_filter($preload_lotteries));
+                $update('preload_lotteries', $preload_lotteries);
             }
 
             $aud_cond = sanitize_key($_POST['promo_audience_condition'] ?? '');
@@ -1162,7 +1241,76 @@ if (!class_exists('Promo_Engine_Stable')) :
                 return false;
             }
 
+            // Bono fixed/% marcado para /oferta/: solo si visitó esa landing (sesión).
+            // DigiPacks (2x1/3x2/bxpy) no se bloquean aquí: se eligen en la UI.
+            if (!$this->campaign_matches_preload_landing($campaign_id)) {
+                return false;
+            }
+
             return true;
+        }
+
+        /**
+         * true si la campaña no exige landing /oferta/, o si la sesión tiene el sorteo correcto.
+         */
+        private function campaign_matches_preload_landing($campaign_id): bool {
+            $campaign_id = absint($campaign_id);
+            if (!$campaign_id) {
+                return false;
+            }
+            if (get_post_meta($campaign_id, self::META['show_on_preload'], true) !== 'yes') {
+                return true;
+            }
+            $type = get_post_meta($campaign_id, self::META['type'], true) ?: 'fixed';
+            if (!in_array($type, ['fixed', 'percent'], true)) {
+                return true;
+            }
+            $preload_product = self::get_preload_product_id();
+            if ($preload_product <= 0) {
+                return false;
+            }
+            return self::campaign_targets_preload_lottery($campaign_id, $preload_product);
+        }
+
+        /** Marca que el cliente entró por /oferta/ de este DigiTicket. */
+        public static function set_preload_product_id($product_id): void {
+            $product_id = absint($product_id);
+            if (!function_exists('WC') || !WC()->session) {
+                return;
+            }
+            if ($product_id <= 0) {
+                WC()->session->set(self::SESSION_PRELOAD_PRODUCT, null);
+                return;
+            }
+            WC()->session->set(self::SESSION_PRELOAD_PRODUCT, $product_id);
+        }
+
+        public static function get_preload_product_id(): int {
+            if (!function_exists('WC') || !WC()->session) {
+                return 0;
+            }
+            return absint(WC()->session->get(self::SESSION_PRELOAD_PRODUCT));
+        }
+
+        /** True si la campaña de preload incluye este sorteo. Array vacío = ninguno. */
+        public static function campaign_targets_preload_lottery($campaign_id, $product_id): bool {
+            $campaign_id = absint($campaign_id);
+            $product_id  = absint($product_id);
+            if (!$campaign_id || !$product_id) {
+                return false;
+            }
+            if (get_post_meta($campaign_id, self::META['show_on_preload'], true) !== 'yes') {
+                return false;
+            }
+            $raw = get_post_meta($campaign_id, self::META['preload_lotteries'], true);
+            if (!is_array($raw)) {
+                return false;
+            }
+            $ids = array_values(array_filter(array_map('absint', $raw)));
+            if (!$ids) {
+                return false;
+            }
+            return in_array($product_id, $ids, true);
         }
 
         /**
@@ -1536,6 +1684,7 @@ if (!class_exists('Promo_Engine_Stable')) :
                     // Los bonos fijos/% acumulables SÍ deben aplicar sobre líneas de pack.
                     if ($line_pack > 0 && $line_pack !== (int) $campaign_id) {
                         $is_pack_campaign = (get_post_meta($campaign_id, self::META['show_on_product'], true) === 'yes')
+                            || (get_post_meta($campaign_id, self::META['show_on_preload'], true) === 'yes' && in_array($type, ['2x1', '3x2', 'bxpy'], true))
                             || in_array($type, ['2x1', '3x2', 'bxpy'], true);
                         if ($is_pack_campaign) {
                             continue;
@@ -1684,6 +1833,100 @@ if (!class_exists('Promo_Engine_Stable')) :
                 }
 
                 $type = get_post_meta($campaign_id, self::META['type'], true) ?: 'fixed';
+                $buy = 1;
+                $pay = 1;
+                if ($type === '2x1') {
+                    $buy = 2;
+                    $pay = 1;
+                } elseif ($type === '3x2') {
+                    $buy = 3;
+                    $pay = 2;
+                } elseif ($type === 'bxpy') {
+                    $buy = max(1, (int) get_post_meta($campaign_id, self::META['bxpy_buy'], true));
+                    $pay = max(1, (int) get_post_meta($campaign_id, self::META['bxpy_pay'], true));
+                }
+
+                $sort = (int) get_post_meta($campaign_id, self::META['product_sort'], true);
+                $pricing = self::get_product_page_pack_pricing($campaign_id, $product_id);
+
+                $rows[] = [
+                    'id'         => $campaign_id,
+                    'title'      => get_the_title($campaign_id),
+                    'type'       => $type,
+                    'buy'        => $buy,
+                    'pay'        => $pay,
+                    'badge'      => (string) get_post_meta($campaign_id, self::META['product_badge'], true),
+                    'sort'       => $sort,
+                    'unit_price' => $pricing['unit_price'],
+                    'list_price' => $pricing['list_price'],
+                    'pack_price' => $pricing['pack_price'],
+                    'savings'    => $pricing['savings'],
+                ];
+            }
+
+            usort($rows, function ($a, $b) {
+                if ($a['sort'] === $b['sort']) {
+                    return $a['id'] <=> $b['id'];
+                }
+                return $a['sort'] <=> $b['sort'];
+            });
+
+            return $rows;
+        }
+
+        /**
+         * DigiPacks marcados para página /oferta/ (bono precargado) de este sorteo.
+         * Independiente de get_product_page_campaigns (ficha).
+         *
+         * @param int $product_id
+         * @return array<int, array<string, mixed>>
+         */
+        public static function get_preload_page_campaigns($product_id = 0) {
+            $product_id = absint($product_id);
+            if (!$product_id) {
+                return [];
+            }
+            $q = new WP_Query([
+                'post_type'      => self::CPT,
+                'post_status'    => 'publish',
+                'posts_per_page' => 100,
+                'fields'         => 'ids',
+                'no_found_rows'  => true,
+                'meta_query'     => [
+                    [
+                        'key'   => self::META['show_on_preload'],
+                        'value' => 'yes',
+                    ],
+                ],
+            ]);
+
+            $now = current_time('timestamp');
+            $rows = [];
+
+            foreach ($q->posts as $campaign_id) {
+                $campaign_id = (int) $campaign_id;
+                if (!self::campaign_targets_preload_lottery($campaign_id, $product_id)) {
+                    continue;
+                }
+
+                $type = get_post_meta($campaign_id, self::META['type'], true) ?: 'fixed';
+                // Solo DigiPacks en el grid de packs; fixed/% se aplican por fee al checkout.
+                if (!in_array($type, ['2x1', '3x2', 'bxpy'], true)) {
+                    continue;
+                }
+
+                $start_ts = self::parse_wp_datetime(get_post_meta($campaign_id, self::META['start'], true), false);
+                $end_ts   = self::parse_wp_datetime(get_post_meta($campaign_id, self::META['end'], true), true);
+                if (($start_ts && $now < $start_ts) || ($end_ts && $now > $end_ts)) {
+                    continue;
+                }
+
+                $limit_total = (int) get_post_meta($campaign_id, self::META['limit_total'], true);
+                $redemptions = (int) get_post_meta($campaign_id, self::META['redemptions'], true);
+                if ($limit_total > 0 && $redemptions >= $limit_total) {
+                    continue;
+                }
+
                 $buy = 1;
                 $pay = 1;
                 if ($type === '2x1') {
