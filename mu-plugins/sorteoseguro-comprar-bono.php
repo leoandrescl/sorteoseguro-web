@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Comprar_Bono {
 
-	const VERSION       = '1.0.0';
+	const VERSION       = '1.0.1';
 	const PARENT_SLUG   = 'oferta';
 	const META_PRODUCT  = '_ss_oferta_product_id';
 	const OPTION_SEEDED = 'ss_oferta_pages_seeded_v1';
@@ -354,38 +354,57 @@ final class SorteoSeguro_Comprar_Bono {
 		if (!self::is_oferta_surface()) {
 			return;
 		}
-		$path = WP_CONTENT_DIR . '/mu-plugins/sorteoseguro-comprar/assets/comprar.css';
-		if (!is_readable($path)) {
-			return;
+		// Mismo first-paint que /comprar/: PDP + comprar.css inline (LiteSpeed no lo difiere).
+		$chunks = [];
+		$pdp_css = WP_CONTENT_DIR . '/mu-plugins/sorteoseguro-pdp/assets/pdp.css';
+		if (is_readable($pdp_css)) {
+			$pdp = file_get_contents($pdp_css);
+			if (is_string($pdp) && $pdp !== '') {
+				$chunks[] = $pdp;
+			}
 		}
-		$css = file_get_contents($path);
-		if ($css === false || $css === '') {
+		$comprar_css = WP_CONTENT_DIR . '/mu-plugins/sorteoseguro-comprar/assets/comprar.css';
+		if (is_readable($comprar_css)) {
+			$co = file_get_contents($comprar_css);
+			if (is_string($co) && $co !== '') {
+				$chunks[] = $co;
+			}
+		}
+		if ($chunks === []) {
 			return;
 		}
 		echo "\n<!-- ss-oferta critical v" . esc_html(self::VERSION) . " -->\n";
-		echo '<style id="ss-oferta-critical" data-no-optimize="1">' . $css . "</style>\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		echo '<style id="ss-oferta-critical" data-no-optimize="1">' . implode("\n", $chunks) . "</style>\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	}
 
 	public static function assets(): void {
-		if (!self::is_oferta_child()) {
+		if (!self::is_oferta_surface()) {
 			return;
 		}
-		$comprar_dir = WP_CONTENT_DIR . '/mu-plugins/sorteoseguro-comprar/assets';
-		$comprar_base = content_url('mu-plugins/sorteoseguro-comprar/assets');
-		$pdp_dir = WP_CONTENT_DIR . '/mu-plugins/sorteoseguro-pdp';
-		$pdp_base = content_url('mu-plugins/sorteoseguro-pdp');
-		$ver = self::VERSION;
-		$pdp_ver = defined('SorteoSeguro_PDP_Templates::VERSION') ? '1' : '1';
-
-		$deps = [];
-		if (is_readable($comprar_dir . '/comprar.css')) {
-			wp_enqueue_style('ss-comprar', $comprar_base . '/comprar.css', $deps, $ver);
+		// Espejo de SorteoSeguro_Comprar::assets() (fuentes + pdp.css + comprar.css/js).
+		if (class_exists('SorteoSeguro_Chrome')) {
+			SorteoSeguro_Chrome::enqueue_fonts();
 		}
-		if (is_readable($pdp_dir . '/pdp.js')) {
+		$base = content_url('mu-plugins/sorteoseguro-comprar/assets');
+		$dir  = WP_CONTENT_DIR . '/mu-plugins/sorteoseguro-comprar/assets';
+		$ver  = self::VERSION;
+		$deps = class_exists('SorteoSeguro_Chrome') && wp_style_is('ss-fonts', 'enqueued') ? ['ss-fonts'] : [];
+
+		$pdp_dir  = WP_CONTENT_DIR . '/mu-plugins/sorteoseguro-pdp/assets';
+		$pdp_base = content_url('mu-plugins/sorteoseguro-pdp/assets');
+		$pdp_ver  = class_exists('SorteoSeguro_PDP_Templates') ? SorteoSeguro_PDP_Templates::VERSION : '1.0.34';
+		if (self::is_oferta_child() && is_readable($pdp_dir . '/pdp.css')) {
+			wp_enqueue_style('ss-pdp', $pdp_base . '/pdp.css', $deps, $pdp_ver);
+			$deps = ['ss-pdp'];
+		}
+		if (is_readable($dir . '/comprar.css')) {
+			wp_enqueue_style('ss-comprar', $base . '/comprar.css', $deps, $ver);
+		}
+		if (self::is_oferta_child() && is_readable($pdp_dir . '/pdp.js')) {
 			wp_enqueue_script('ss-pdp', $pdp_base . '/pdp.js', [], $pdp_ver, true);
 		}
-		if (is_readable($comprar_dir . '/comprar.js')) {
-			wp_enqueue_script('ss-comprar', $comprar_base . '/comprar.js', ['jquery', 'ss-pdp'], $ver, true);
+		if (self::is_oferta_child() && is_readable($dir . '/comprar.js')) {
+			wp_enqueue_script('ss-comprar', $base . '/comprar.js', ['jquery', 'ss-pdp'], $ver, true);
 		}
 	}
 
