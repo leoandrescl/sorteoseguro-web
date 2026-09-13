@@ -31,16 +31,20 @@ body.ss-comprar-index {
 	order: 1;
 }
 
-.ss-comprar__below {
+.ss-comprar__layout > .ss-pdp-marquee {
 	order: 2;
 }
 
-.ss-comprar__buy.purchase-panel {
+.ss-comprar__below {
 	order: 3;
 }
 
-.ss-comprar-checkout-wrap {
+.ss-comprar__buy.purchase-panel {
 	order: 4;
+}
+
+.ss-comprar-checkout-wrap {
+	order: 5;
 }
 
 .ss-comprar__buy.purchase-panel {
@@ -78,6 +82,7 @@ body.ss-comprar-index {
 		grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.9fr);
 		grid-template-areas:
 			"media buy"
+			"marquee buy"
 			"below buy"
 			"checkout checkout";
 		gap: 1.5rem;
@@ -87,13 +92,14 @@ body.ss-comprar-index {
 	.ss-comprar__buy,
 	.ss-comprar-checkout-wrap,
 	.ss-comprar__media,
+	.ss-comprar__layout > .ss-pdp-marquee,
 	.ss-comprar__below {
 		order: unset;
 	}
 
 	.ss-comprar__buy {
 		grid-area: buy;
-		grid-row: 1 / 3;
+		grid-row: 1 / 4;
 		position: static;
 		top: auto;
 		padding: 1.35rem 1.25rem 1.25rem;
@@ -107,6 +113,11 @@ body.ss-comprar-index {
 		min-width: 0;
 	}
 
+	.ss-comprar__layout > .ss-pdp-marquee {
+		grid-area: marquee;
+		min-width: 0;
+	}
+
 	.ss-comprar__below {
 		grid-area: below;
 		min-width: 0;
@@ -115,7 +126,7 @@ body.ss-comprar-index {
 	.ss-comprar-checkout-wrap {
 		grid-area: checkout;
 		grid-column: 1 / -1;
-		grid-row: 3;
+		grid-row: 4;
 		max-width: none;
 		margin: 0;
 		padding: 0;

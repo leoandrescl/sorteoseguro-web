@@ -251,6 +251,12 @@ $resolve_prize_image = static function ($image) use ($gallery) {
 			<?php endif; ?>
 		</div>
 
+		<?php
+		if (class_exists('SorteoSeguro_PDP_Templates')) {
+			SorteoSeguro_PDP_Templates::render_marquee((int) $product_id);
+		}
+		?>
+
 		<div class="ss-comprar__below">
 			<?php if (!empty($ss['prizes'])) : ?>
 			<section id="ss-premios" class="ss-pdp-block">

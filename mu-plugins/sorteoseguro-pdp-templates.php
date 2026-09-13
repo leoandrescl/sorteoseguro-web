@@ -11,9 +11,10 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_PDP_Templates {
 
-	const VERSION = '1.0.36';
+	const VERSION = '1.0.37';
 	const META_YOUTUBE = '_ss_pdp_youtube_url';
 	const META_FILE    = '_ss_pdp_video_file';
+	const META_MARQUEE = '_ss_pdp_marquee_ids';
 
 	/** product_id => relative template under mu-plugins/sorteoseguro-pdp/ */
 	private static array $map = [
@@ -34,7 +35,9 @@ final class SorteoSeguro_PDP_Templates {
 		add_action('wp_footer', [__CLASS__, 'print_js'], 20);
 		add_filter('cmplz_whitelisted_script_tags', [__CLASS__, 'cmplz_whitelist_video']);
 		add_action('add_meta_boxes', [__CLASS__, 'register_video_metabox']);
+		add_action('add_meta_boxes', [__CLASS__, 'register_marquee_metabox']);
 		add_action('save_post_product', [__CLASS__, 'save_video_metabox'], 20, 2);
+		add_action('save_post_product', [__CLASS__, 'save_marquee_metabox'], 21, 2);
 		add_action('admin_enqueue_scripts', [__CLASS__, 'admin_assets']);
 	}
 
@@ -184,6 +187,227 @@ final class SorteoSeguro_PDP_Templates {
 			'side',
 			'high'
 		);
+	}
+
+	public static function register_marquee_metabox(): void {
+		add_meta_box(
+			'ss_pdp_marquee',
+			'Carrusel de imágenes (bajo miniaturas)',
+			[__CLASS__, 'render_marquee_metabox'],
+			'product',
+			'normal',
+			'high'
+		);
+	}
+
+	/**
+	 * @return list<int>
+	 */
+	public static function product_marquee_ids(int $product_id): array {
+		if ($product_id <= 0) {
+			return [];
+		}
+		$raw = get_post_meta($product_id, self::META_MARQUEE, true);
+		if (is_array($raw)) {
+			$parts = $raw;
+		} else {
+			$parts = preg_split('/[\s,]+/', trim((string) $raw)) ?: [];
+		}
+		$ids = [];
+		foreach ($parts as $part) {
+			$id = (int) $part;
+			if ($id > 0 && !in_array($id, $ids, true)) {
+				$ids[] = $id;
+			}
+		}
+		return $ids;
+	}
+
+	/**
+	 * @return list<array{id:int,src:string,alt:string}>
+	 */
+	public static function product_marquee_images(int $product_id): array {
+		$out = [];
+		foreach (self::product_marquee_ids($product_id) as $id) {
+			$src = wp_get_attachment_image_url($id, 'medium_large')
+				?: wp_get_attachment_image_url($id, 'large')
+				?: wp_get_attachment_image_url($id, 'full');
+			if (!$src) {
+				continue;
+			}
+			$alt = (string) get_post_meta($id, '_wp_attachment_image_alt', true);
+			$out[] = [
+				'id'  => $id,
+				'src' => $src,
+				'alt' => $alt,
+			];
+		}
+		return $out;
+	}
+
+	public static function render_marquee(int $product_id): void {
+		$images = self::product_marquee_images($product_id);
+		if ($images === []) {
+			return;
+		}
+		// Duplicar el set hasta cubrir al menos 6 slides (2 vueltas de 3 visibles).
+		$slides = $images;
+		while (count($slides) < 6) {
+			foreach ($images as $img) {
+				$slides[] = $img;
+				if (count($slides) >= 6) {
+					break;
+				}
+			}
+		}
+		$loop = array_merge($slides, $slides);
+		$secs = max(18, count($slides) * 3);
+		?>
+		<div
+			class="ss-pdp-marquee"
+			data-ss-marquee
+			aria-hidden="true"
+			style="--ss-marquee-duration: <?php echo (int) $secs; ?>s;"
+		>
+			<div class="ss-pdp-marquee__viewport">
+				<div class="ss-pdp-marquee__track">
+					<?php foreach ($loop as $img) : ?>
+						<figure class="ss-pdp-marquee__item">
+							<img
+								src="<?php echo esc_url($img['src']); ?>"
+								alt=""
+								loading="lazy"
+								decoding="async"
+								draggable="false"
+							>
+						</figure>
+					<?php endforeach; ?>
+				</div>
+			</div>
+		</div>
+		<?php
+	}
+
+	public static function render_marquee_metabox(\WP_Post $post): void {
+		$ids = self::product_marquee_ids((int) $post->ID);
+		wp_nonce_field('ss_pdp_marquee_save', 'ss_pdp_marquee_nonce');
+		?>
+		<p style="margin:0 0 12px;">Galería aparte de la imagen destacada y las miniaturas WooCommerce. Se muestra como carrusel automático (3 a la vez) bajo las miniaturas en ficha, compra directa y oferta. Sin imágenes = no se muestra.</p>
+		<input type="hidden" id="ss_pdp_marquee_ids" name="ss_pdp_marquee_ids" value="<?php echo esc_attr(implode(',', $ids)); ?>">
+		<ul id="ss-pdp-marquee-list" class="ss-pdp-marquee-admin__list" style="display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px;padding:0;list-style:none;">
+			<?php foreach ($ids as $id) :
+				$thumb = wp_get_attachment_image_url($id, 'thumbnail');
+				if (!$thumb) {
+					continue;
+				}
+				?>
+				<li data-id="<?php echo (int) $id; ?>" style="position:relative;width:84px;height:84px;border:1px solid #c3c4c7;border-radius:4px;overflow:hidden;background:#f0f0f1;">
+					<img src="<?php echo esc_url($thumb); ?>" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
+					<button type="button" class="button-link ss-pdp-marquee-admin__remove" style="position:absolute;top:2px;right:4px;color:#b32d2e;text-decoration:none;font-weight:700;" aria-label="Quitar">&times;</button>
+				</li>
+			<?php endforeach; ?>
+		</ul>
+		<p style="margin:0;">
+			<button type="button" class="button" id="ss-pdp-marquee-add">Agregar imágenes</button>
+			<button type="button" class="button-link" id="ss-pdp-marquee-clear" style="margin-left:8px;">Vaciar galería</button>
+		</p>
+		<script>
+		(function () {
+			var input = document.getElementById('ss_pdp_marquee_ids');
+			var list = document.getElementById('ss-pdp-marquee-list');
+			var addBtn = document.getElementById('ss-pdp-marquee-add');
+			var clearBtn = document.getElementById('ss-pdp-marquee-clear');
+			if (!input || !list || !addBtn || typeof wp === 'undefined' || !wp.media) return;
+
+			function idsFromInput() {
+				return (input.value || '').split(/[\s,]+/).map(function (v) {
+					return parseInt(v, 10);
+				}).filter(function (n) { return n > 0; });
+			}
+
+			function syncInput() {
+				var ids = [];
+				list.querySelectorAll('li[data-id]').forEach(function (li) {
+					var id = parseInt(li.getAttribute('data-id'), 10);
+					if (id > 0) ids.push(id);
+				});
+				input.value = ids.join(',');
+			}
+
+			function addItem(id, url) {
+				if (!id || !url) return;
+				if (list.querySelector('li[data-id="' + id + '"]')) return;
+				var li = document.createElement('li');
+				li.setAttribute('data-id', String(id));
+				li.style.cssText = 'position:relative;width:84px;height:84px;border:1px solid #c3c4c7;border-radius:4px;overflow:hidden;background:#f0f0f1;';
+				li.innerHTML = '<img src="' + url + '" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">' +
+					'<button type="button" class="button-link ss-pdp-marquee-admin__remove" style="position:absolute;top:2px;right:4px;color:#b32d2e;text-decoration:none;font-weight:700;" aria-label="Quitar">&times;</button>';
+				list.appendChild(li);
+			}
+
+			list.addEventListener('click', function (e) {
+				var btn = e.target.closest('.ss-pdp-marquee-admin__remove');
+				if (!btn) return;
+				e.preventDefault();
+				var li = btn.closest('li');
+				if (li) li.remove();
+				syncInput();
+			});
+
+			addBtn.addEventListener('click', function (e) {
+				e.preventDefault();
+				var frame = wp.media({
+					title: 'Carrusel bajo miniaturas',
+					library: { type: 'image' },
+					button: { text: 'Agregar al carrusel' },
+					multiple: true
+				});
+				frame.on('select', function () {
+					frame.state().get('selection').each(function (att) {
+						var json = att.toJSON();
+						var url = (json.sizes && json.sizes.thumbnail && json.sizes.thumbnail.url) || json.url || '';
+						addItem(json.id, url);
+					});
+					syncInput();
+				});
+				frame.open();
+			});
+
+			if (clearBtn) {
+				clearBtn.addEventListener('click', function (e) {
+					e.preventDefault();
+					list.innerHTML = '';
+					input.value = '';
+				});
+			}
+		})();
+		</script>
+		<?php
+	}
+
+	public static function save_marquee_metabox(int $post_id, $post = null): void {
+		if (!isset($_POST['ss_pdp_marquee_nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['ss_pdp_marquee_nonce'])), 'ss_pdp_marquee_save')) {
+			return;
+		}
+		if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+			return;
+		}
+		if (!current_user_can('edit_post', $post_id)) {
+			return;
+		}
+		$raw = isset($_POST['ss_pdp_marquee_ids']) ? sanitize_text_field(wp_unslash($_POST['ss_pdp_marquee_ids'])) : '';
+		$ids = [];
+		foreach (preg_split('/[\s,]+/', $raw) ?: [] as $part) {
+			$id = (int) $part;
+			if ($id > 0 && !in_array($id, $ids, true) && wp_attachment_is_image($id)) {
+				$ids[] = $id;
+			}
+		}
+		if ($ids === []) {
+			delete_post_meta($post_id, self::META_MARQUEE);
+			return;
+		}
+		update_post_meta($post_id, self::META_MARQUEE, implode(',', $ids));
 	}
 
 	public static function render_video_metabox(\WP_Post $post): void {

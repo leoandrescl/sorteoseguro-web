@@ -228,6 +228,12 @@ get_header();
 				<?php endif; ?>
 			</div>
 
+		<?php
+		if (class_exists('SorteoSeguro_PDP_Templates')) {
+			SorteoSeguro_PDP_Templates::render_marquee((int) $product_id);
+		}
+		?>
+
 		<aside class="ss-pdp__right purchase-panel">
 			<h1 class="ss-pdp-title"><?php echo esc_html($title); ?></h1>
 			<p class="ss-pdp-intro subtitle"><?php echo esc_html($ss['intro']); ?></p>

@@ -3,7 +3,7 @@
  * Plugin Name: Sorteo Seguro – Compra bono precargado
  * Description: Página /oferta/{slug}/ (clone de compra directa) con DigiPacks y bono vía Promo Engine.
  * Author: Sorteo Seguro
- * Version: 1.0.2
+ * Version: 1.0.3
  *
  * Rollback: borrar este archivo (+ páginas bajo /oferta/ en WP si se desea).
  * No modifica /comprar/ ni fichas PDP.
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Comprar_Bono {
 
-	const VERSION       = '1.0.2';
+	const VERSION       = '1.0.3';
 	const PARENT_SLUG   = 'oferta';
 	const META_PRODUCT  = '_ss_oferta_product_id';
 	const OPTION_SEEDED = 'ss_oferta_pages_seeded_v2';
