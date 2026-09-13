@@ -3,7 +3,7 @@
  * Plugin Name: Sorteo Seguro – Exportar contactos Brevo
  * Description: Panel wp-admin para descargar CSV (EMAIL, FIRSTNAME, LASTNAME) listo para importar en Brevo.
  * Author: Sorteo Seguro
- * Version: 1.1.0
+ * Version: 1.2.0
  *
  * mu-plugin: borrar este archivo para rollback.
  */
@@ -13,14 +13,12 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Brevo_Export {
 
-	const VERSION = '1.1.0';
+	const VERSION = '1.2.0';
 	const PAGE    = 'ss-brevo-export';
 	const ACTION  = 'ss_brevo_export';
 	const NONCE   = 'ss_brevo_export';
 
 	const SKIP_ROLES = array('administrator', 'shop_manager', 'editor', 'author');
-
-	const PAID_STATUSES = array('completed', 'processing');
 
 	public static function init(): void {
 		add_action('admin_menu', array(__CLASS__, 'register_menu'));
@@ -36,7 +34,7 @@ final class SorteoSeguro_Brevo_Export {
 			),
 			'compradores' => array(
 				'label' => 'Compradores en el período',
-				'help'  => 'Quienes pagaron un pedido (Completado o Procesando) en esas fechas, con cuenta o guest.',
+				'help'  => 'Quienes tienen un pedido en esas fechas (según los estados marcados), con cuenta o guest.',
 			),
 			'registrados_y_compraron' => array(
 				'label' => 'Registrados que compraron',
@@ -48,8 +46,23 @@ final class SorteoSeguro_Brevo_Export {
 			),
 			'registrados_sin_compra' => array(
 				'label' => 'Registrados que no compraron',
-				'help'  => 'Cuentas creadas en el período sin pedido pagado (de los sorteos marcados, si eliges alguno).',
+				'help'  => 'Cuentas creadas en el período sin pedido en los estados/sorteos marcados (si no marcas estados, cualquier pedido).',
 			),
+		);
+	}
+
+	/**
+	 * @return array<string, string>
+	 */
+	public static function order_statuses(): array {
+		return array(
+			'pending'    => 'Pendiente',
+			'processing' => 'Procesando',
+			'on-hold'    => 'En espera',
+			'completed'  => 'Completado',
+			'cancelled'  => 'Cancelado',
+			'refunded'   => 'Reembolsado',
+			'failed'     => 'Fallido',
 		);
 	}
 
@@ -126,6 +139,12 @@ final class SorteoSeguro_Brevo_Export {
 .ss-brevo__opt strong { display: block; font-size: 14px; margin: 0 0 2px; }
 .ss-brevo__opt small,
 .ss-brevo__check small { color: #6b7280; font-size: 12px; line-height: 1.4; }
+.ss-brevo__statuses {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+	margin: 0 0 16px;
+}
 .ss-brevo__sorteos {
 	display: flex;
 	flex-direction: column;
@@ -176,6 +195,7 @@ final class SorteoSeguro_Brevo_Export {
 			$cond = 'registrados_mas_compradores';
 		}
 		$selected = self::parse_product_ids(isset($_GET['sorteos']) ? wp_unslash($_GET['sorteos']) : array());
+		$estados  = self::parse_statuses(isset($_GET['estados']) ? wp_unslash($_GET['estados']) : array());
 		$sorteos  = self::lottery_products();
 		$notice   = isset($_GET['ss_brevo']) ? sanitize_key(wp_unslash($_GET['ss_brevo'])) : '';
 
@@ -203,7 +223,20 @@ final class SorteoSeguro_Brevo_Export {
 		echo '<label class="ss-brevo__field"><span>Hasta (opcional)</span>';
 		echo '<input type="date" name="to" value="' . esc_attr($to) . '" /></label>';
 		echo '</div>';
-		echo '<p class="ss-brevo__hint">Vacío = sin filtro de fecha. Si marcas sorteos y dejas las fechas vacías, exporta todos los compradores de esos sorteos.</p>';
+		echo '<p class="ss-brevo__hint">Vacío = sin filtro de fecha. Si marcas sorteos y dejas las fechas vacías, exporta todos los pedidos de esos sorteos (según estados).</p>';
+
+		echo '<p class="ss-brevo__label">Estado del pedido (opcional, uno o más)</p>';
+		echo '<p class="ss-brevo__hint">Ninguno marcado = todos los estados. Marca p. ej. Cancelado y Fallido para solo esos.</p>';
+		echo '<p class="ss-brevo__sorteos-bar"><a href="#" class="ss-brevo-st-all">Marcar todos</a> · <a href="#" class="ss-brevo-st-none">Ninguno</a></p>';
+		echo '<div class="ss-brevo__statuses">';
+		foreach (self::order_statuses() as $slug => $label) {
+			$on = in_array($slug, $estados, true) ? ' is-on' : '';
+			echo '<label class="ss-brevo__check' . esc_attr($on) . '">';
+			echo '<input type="checkbox" name="estados[]" value="' . esc_attr($slug) . '"' . checked(in_array($slug, $estados, true), true, false) . ' /> ';
+			echo esc_html($label);
+			echo '</label>';
+		}
+		echo '</div>';
 
 		echo '<p class="ss-brevo__label">Sorteos (opcional, uno o más)</p>';
 		echo '<p class="ss-brevo__hint">Complementa la condición y las fechas. Sin sorteos marcados, cuenta cualquier compra.</p>';
@@ -263,22 +296,26 @@ final class SorteoSeguro_Brevo_Export {
 					form.querySelectorAll(".ss-brevo__opt").forEach(function(el){ el.classList.remove("is-on"); });
 					if (e.target.closest) e.target.closest(".ss-brevo__opt").classList.add("is-on");
 				}
-				if (e.target.name === "sorteos[]") {
+				if (e.target.name === "sorteos[]" || e.target.name === "estados[]") {
 					var lab = e.target.closest && e.target.closest(".ss-brevo__check");
 					if (lab) lab.classList.toggle("is-on", e.target.checked);
 				}
 			});
 			var all = form.querySelector(".ss-brevo-all");
 			var none = form.querySelector(".ss-brevo-none");
-			function setAll(on){
-				form.querySelectorAll("input[name=\\"sorteos[]\\"]").forEach(function(cb){
+			function setNamed(name, on){
+				form.querySelectorAll("input[name=\\"" + name + "\\"]").forEach(function(cb){
 					cb.checked = on;
 					var lab = cb.closest && cb.closest(".ss-brevo__check");
 					if (lab) lab.classList.toggle("is-on", on);
 				});
 			}
-			if (all) all.addEventListener("click", function(e){ e.preventDefault(); setAll(true); });
-			if (none) none.addEventListener("click", function(e){ e.preventDefault(); setAll(false); });
+			if (all) all.addEventListener("click", function(e){ e.preventDefault(); setNamed("sorteos[]", true); });
+			if (none) none.addEventListener("click", function(e){ e.preventDefault(); setNamed("sorteos[]", false); });
+			var stall = form.querySelector(".ss-brevo-st-all");
+			var stnone = form.querySelector(".ss-brevo-st-none");
+			if (stall) stall.addEventListener("click", function(e){ e.preventDefault(); setNamed("estados[]", true); });
+			if (stnone) stnone.addEventListener("click", function(e){ e.preventDefault(); setNamed("estados[]", false); });
 		})();
 		</script>';
 	}
@@ -293,6 +330,7 @@ final class SorteoSeguro_Brevo_Export {
 		$to   = isset($_POST['to']) ? sanitize_text_field(wp_unslash($_POST['to'])) : '';
 		$cond = isset($_POST['condicion']) ? sanitize_key(wp_unslash($_POST['condicion'])) : '';
 		$pids = self::parse_product_ids(isset($_POST['sorteos']) ? wp_unslash($_POST['sorteos']) : array());
+		$sts  = self::parse_statuses(isset($_POST['estados']) ? wp_unslash($_POST['estados']) : array());
 
 		$back = admin_url('admin.php?page=' . self::PAGE);
 		$q    = array(
@@ -300,6 +338,7 @@ final class SorteoSeguro_Brevo_Export {
 			'to'        => $to,
 			'condicion' => $cond,
 			'sorteos'   => implode(',', $pids),
+			'estados'   => implode(',', $sts),
 		);
 
 		$has_from = (bool) preg_match('/^\d{4}-\d{2}-\d{2}$/', $from);
@@ -331,7 +370,7 @@ final class SorteoSeguro_Brevo_Export {
 			@set_time_limit(180);
 		}
 
-		$contacts = self::collect($has_from ? $from : '', $has_to ? $to : '', $cond, $pids);
+		$contacts = self::collect($has_from ? $from : '', $has_to ? $to : '', $cond, $pids, $sts);
 		if ($contacts === array()) {
 			$q['ss_brevo'] = 'empty';
 			wp_safe_redirect(add_query_arg($q, $back));
@@ -344,6 +383,9 @@ final class SorteoSeguro_Brevo_Export {
 		}
 		if ($pids) {
 			$slug .= '-s' . implode('-', array_slice($pids, 0, 6));
+		}
+		if ($sts) {
+			$slug .= '-st' . implode('-', array_slice($sts, 0, 6));
 		}
 		$filename = 'brevo-contactos-' . $slug . '.csv';
 
@@ -364,9 +406,10 @@ final class SorteoSeguro_Brevo_Export {
 
 	/**
 	 * @param int[] $product_ids
+	 * @param string[] $statuses
 	 * @return array<string, array{EMAIL:string,FIRSTNAME:string,LASTNAME:string}>
 	 */
-	public static function collect(string $from, string $to, string $cond, array $product_ids = array()): array {
+	public static function collect(string $from, string $to, string $cond, array $product_ids = array(), array $statuses = array()): array {
 		$has_dates = ($from !== '' && $to !== '');
 		$use_buyers = ($cond !== 'registrados') || ($product_ids !== array());
 		$use_registered = $has_dates && in_array(
@@ -381,7 +424,7 @@ final class SorteoSeguro_Brevo_Export {
 		}
 
 		$registered = $use_registered ? self::registered_contacts($from, $to) : array();
-		$buyers     = $use_buyers ? self::buyer_contacts($from, $to, $product_ids) : array();
+		$buyers     = $use_buyers ? self::buyer_contacts($from, $to, $product_ids, $statuses) : array();
 
 		if (!$has_dates && $product_ids !== array()) {
 			return $buyers;
@@ -480,6 +523,38 @@ final class SorteoSeguro_Brevo_Export {
 	}
 
 	/**
+	 * @param mixed $raw
+	 * @return string[]
+	 */
+	private static function parse_statuses($raw): array {
+		if (is_string($raw) && $raw !== '') {
+			$raw = explode(',', $raw);
+		}
+		if (!is_array($raw)) {
+			return array();
+		}
+		$allowed = self::order_statuses();
+		$out     = array();
+		foreach ($raw as $slug) {
+			$slug = sanitize_key((string) $slug);
+			if ($slug !== '' && isset($allowed[ $slug ])) {
+				$out[] = $slug;
+			}
+		}
+		return array_values(array_unique($out));
+	}
+
+	/**
+	 * Vacío = todos los estados del filtro.
+	 *
+	 * @param string[] $selected
+	 * @return string[]
+	 */
+	private static function effective_statuses(array $selected): array {
+		return $selected ? $selected : array_keys(self::order_statuses());
+	}
+
+	/**
 	 * @return array<string, array{EMAIL:string,FIRSTNAME:string,LASTNAME:string}>
 	 */
 	private static function registered_contacts(string $from, string $to): array {
@@ -515,13 +590,15 @@ final class SorteoSeguro_Brevo_Export {
 
 	/**
 	 * @param int[] $product_ids
+	 * @param string[] $statuses
 	 * @return array<string, array{EMAIL:string,FIRSTNAME:string,LASTNAME:string}>
 	 */
-	private static function buyer_contacts(string $from, string $to, array $product_ids = array()): array {
-		$staff = self::staff_emails();
-		$out   = array();
+	private static function buyer_contacts(string $from, string $to, array $product_ids = array(), array $statuses = array()): array {
+		$staff    = self::staff_emails();
+		$out      = array();
+		$statuses = self::effective_statuses($statuses);
 
-		$order_ids = self::paid_order_ids($from, $to, $product_ids);
+		$order_ids = self::paid_order_ids($from, $to, $product_ids, $statuses);
 		if (is_array($order_ids)) {
 			foreach (array_chunk($order_ids, 100) as $chunk) {
 				$orders = wc_get_orders(
@@ -530,7 +607,7 @@ final class SorteoSeguro_Brevo_Export {
 						'include' => $chunk,
 						'type'    => 'shop_order',
 						'return'  => 'objects',
-						'status'  => self::PAID_STATUSES,
+						'status'  => $statuses,
 					)
 				);
 				if (!is_array($orders)) {
@@ -544,7 +621,7 @@ final class SorteoSeguro_Brevo_Export {
 			$page = 1;
 			$args = array(
 				'limit'  => 200,
-				'status' => self::PAID_STATUSES,
+				'status' => $statuses,
 				'type'   => 'shop_order',
 				'return' => 'objects',
 			);
@@ -587,9 +664,10 @@ final class SorteoSeguro_Brevo_Export {
 
 	/**
 	 * @param int[] $product_ids
+	 * @param string[] $statuses
 	 * @return int[]|null
 	 */
-	private static function paid_order_ids(string $from, string $to, array $product_ids): ?array {
+	private static function paid_order_ids(string $from, string $to, array $product_ids, array $statuses): ?array {
 		if ($product_ids === array()) {
 			return null;
 		}
@@ -604,14 +682,19 @@ final class SorteoSeguro_Brevo_Export {
 			return null;
 		}
 
-		$in   = implode(',', array_fill(0, count($product_ids), '%d'));
-		$sql  = "SELECT DISTINCT p.order_id
+		$st_args = array();
+		foreach ($statuses as $st) {
+			$st_args[] = 'wc-' . $st;
+		}
+		$st_in = implode(',', array_fill(0, count($st_args), '%s'));
+		$in    = implode(',', array_fill(0, count($product_ids), '%d'));
+		$sql   = "SELECT DISTINCT p.order_id
 			FROM {$lookup} p
 			INNER JOIN {$stats} s ON s.order_id = p.order_id
 			WHERE s.parent_id = 0
-			AND s.status IN ('wc-completed','wc-processing')
+			AND s.status IN ({$st_in})
 			AND (p.product_id IN ({$in}) OR p.variation_id IN ({$in}))";
-		$args = array_merge($product_ids, $product_ids);
+		$args = array_merge($st_args, $product_ids, $product_ids);
 
 		if ($from !== '' && $to !== '') {
 			$sql   .= ' AND s.date_created_gmt >= %s AND s.date_created_gmt <= %s';
