@@ -2,13 +2,14 @@
 /**
  * Plugin Name: Promo Engine (Stable 1.3.0) — Non-Stacking Logic
  * Description: Sistema de promociones con lógica de inventario virtual (no acumulable por ítem) y prioridad por volumen de compra (BxPy).
- * Version: 1.3.0-stable-p13
+ * Version: 1.3.0-stable-p14
  * p10: bonos fixed/% acumulables aplican sobre líneas DigiPack (ya no las bloquea el inventario BxPy).
  * p11: bonos fixed/% = fee único de carrito sin nombre de producto; min_total = total a pagar tras packs.
  * p12: audiencia Brevo (desde/hasta + condición) y filtro “compró DigiTickets de estos sorteos”.
  *      Filtros viejos intactos; si los nuevos están vacíos, el bono aplica como antes.
  * p13: página bono precargado (/oferta/): DigiPacks visibles + bonos fixed/% solo con sesión de landing.
  *      Ficha/comprar y filtros previos intactos.
+ * p14: 1 uso por cliente + contador de redenciones solo al pasar a Completado/Procesando (pago efectivo).
  */
 
 if (!defined('ABSPATH')) exit;
@@ -88,7 +89,10 @@ if (!class_exists('Promo_Engine_Stable')) :
             add_action('woocommerce_checkout_before_terms_and_conditions', [$this, 'inject_source_in_registration_form']);
 
             add_action('woocommerce_cart_calculate_fees', [$this, 'apply_promotions_entrypoint'], 20, 1);
+            // Solo guarda IDs en el pedido; el consumo es al pago efectivo (processing/completed).
             add_action('woocommerce_checkout_order_processed', [$this, 'mark_redemption_on_order'], 10, 3);
+            add_action('woocommerce_order_status_processing', [$this, 'consume_redemption_on_paid'], 10, 2);
+            add_action('woocommerce_order_status_completed', [$this, 'consume_redemption_on_paid'], 10, 2);
 
             // Cupones % de WC se calculan sobre line_subtotal; la promo va como fee.
             // Escalamos el cupón para que equivalga a aplicarlo DESPUÉS de la promo.
@@ -1773,19 +1777,76 @@ if (!class_exists('Promo_Engine_Stable')) :
             ];
         }
 
+        /**
+         * Al crear el pedido: solo persiste qué campañas se aplicaron.
+         * No consume el 1 uso ni suma redenciones (eso espera pago efectivo).
+         */
         public function mark_redemption_on_order($order_id, $posted_data, $order) {
-            if (!WC()->session || !($applied = WC()->session->get(self::SESSION_APPLIED))) return;
-            $user_id = (int)$order->get_user_id(); if (!$user_id) return;
-            $campaign_ids = is_array($applied) ? $applied : [ (int) $applied ];
-            $used = get_user_meta($user_id, 'promo_engine_used_campaigns', true) ?: [];
-            foreach ($campaign_ids as $cid) {
-                if ((int) get_post_meta($cid, self::META['limit_per_user'], true) && !in_array($cid, $used, true)) $used[] = $cid;
-                update_post_meta($cid, self::META['redemptions'], (int)get_post_meta($cid, self::META['redemptions'], true) + 1);
+            if (!$order instanceof WC_Order) {
+                $order = wc_get_order($order_id);
             }
-            update_user_meta($user_id, 'promo_engine_used_campaigns', $used);
-            $order->update_meta_data('_promo_engine_campaign_ids', implode(',', $campaign_ids));
-            $order->save();
+            if (!$order instanceof WC_Order) {
+                return;
+            }
+            if (!WC()->session || !($applied = WC()->session->get(self::SESSION_APPLIED))) {
+                return;
+            }
+            $campaign_ids = is_array($applied) ? $applied : [(int) $applied];
+            $campaign_ids = array_values(array_unique(array_filter(array_map('intval', $campaign_ids))));
+            if ($campaign_ids) {
+                $order->update_meta_data('_promo_engine_campaign_ids', implode(',', $campaign_ids));
+                $order->save();
+            }
             WC()->session->set(self::SESSION_APPLIED, null);
+        }
+
+        /**
+         * Consume 1 uso / redenciones solo cuando el pedido queda Procesando o Completado.
+         * Idempotente: no vuelve a contar al pasar de processing → completed.
+         *
+         * @param int           $order_id
+         * @param WC_Order|null $order
+         */
+        public function consume_redemption_on_paid($order_id, $order = null) {
+            if (!$order instanceof WC_Order) {
+                $order = wc_get_order($order_id);
+            }
+            if (!$order instanceof WC_Order) {
+                return;
+            }
+            if ($order->get_meta('_promo_engine_redeemed') === '1') {
+                return;
+            }
+            $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string) $order->get_meta('_promo_engine_campaign_ids'))))));
+            if (!$ids) {
+                return;
+            }
+
+            $order->update_meta_data('_promo_engine_redeemed', '1');
+            $order->save();
+
+            $user_id = (int) $order->get_user_id();
+            $used = [];
+            if ($user_id) {
+                $used = get_user_meta($user_id, 'promo_engine_used_campaigns', true) ?: [];
+                if (!is_array($used)) {
+                    $used = [];
+                }
+            }
+
+            foreach ($ids as $cid) {
+                $cid = (int) $cid;
+                if ($user_id && (int) get_post_meta($cid, self::META['limit_per_user'], true)) {
+                    if (!in_array($cid, $used, true)) {
+                        $used[] = $cid;
+                    }
+                }
+                update_post_meta($cid, self::META['redemptions'], (int) get_post_meta($cid, self::META['redemptions'], true) + 1);
+            }
+
+            if ($user_id) {
+                update_user_meta($user_id, 'promo_engine_used_campaigns', $used);
+            }
         }
 
         /**
@@ -2176,21 +2237,6 @@ if (!class_exists('Promo_Engine_Stable')) :
 endif;
 
 new Promo_Engine_Stable();
-
-/** Status marked used on status changes **/
-add_action('woocommerce_order_status_processing', 'promo_engine_mark_used_status', 10, 2);
-add_action('woocommerce_order_status_completed', 'promo_engine_mark_used_status', 10, 2);
-function promo_engine_mark_used_status($order_id, $order = null) {
-    if (!$order instanceof WC_Order) $order = wc_get_order($order_id);
-    if (!$order || !($user_id = (int)$order->get_user_id())) return;
-    $ids = array_filter(array_map('intval', explode(',', (string)$order->get_meta('_promo_engine_campaign_ids'))));
-    $used = get_user_meta($user_id, 'promo_engine_used_campaigns', true) ?: [];
-    foreach ($ids as $cid) {
-        if (!in_array($cid, $used)) $used[] = $cid;
-        update_post_meta($cid, '_promo_redemptions', (int)get_post_meta($cid, '_promo_redemptions', true) + 1);
-    }
-    update_user_meta($user_id, 'promo_engine_used_campaigns', $used);
-}
 
 /** Mercado Pago Logic Integral **/
 add_filter('woocommerce_mercadopago_checkout_preference', 'pe_mp_inject_promo_kensu', 10, 2);
