@@ -3,7 +3,7 @@
  * Plugin Name: Sorteo Seguro – Compra directa
  * Description: Página /comprar/{slug}/ con packs + checkout embebido.
  * Author: Sorteo Seguro
- * Version: 1.0.26
+ * Version: 1.0.27
  *
  * Rollback: borrar este archivo y la carpeta sorteoseguro-comprar/ (+ páginas bajo /comprar/ en WP si se desea).
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Comprar {
 
-	const VERSION        = '1.0.26';
+	const VERSION        = '1.0.27';
 	const DIR            = __DIR__ . '/sorteoseguro-comprar';
 	const PARENT_SLUG    = 'comprar';
 	const META_PRODUCT   = '_ss_comprar_product_id';
@@ -465,16 +465,29 @@ final class SorteoSeguro_Comprar {
 		if (!self::is_comprar_surface()) {
 			return;
 		}
-		$path = self::DIR . '/assets/comprar.css';
-		if (!is_readable($path)) {
-			return;
+		// Hijos: PDP + comprar inline (galería/marquee). Index: solo comprar.css.
+		$chunks = [];
+		if (self::is_comprar_child()) {
+			$pdp_css = WP_CONTENT_DIR . '/mu-plugins/sorteoseguro-pdp/assets/pdp.css';
+			if (is_readable($pdp_css)) {
+				$pdp = file_get_contents($pdp_css);
+				if (is_string($pdp) && $pdp !== '') {
+					$chunks[] = $pdp;
+				}
+			}
 		}
-		$css = file_get_contents($path);
-		if ($css === false || $css === '') {
+		$path = self::DIR . '/assets/comprar.css';
+		if (is_readable($path)) {
+			$css = file_get_contents($path);
+			if (is_string($css) && $css !== '') {
+				$chunks[] = $css;
+			}
+		}
+		if ($chunks === []) {
 			return;
 		}
 		echo "\n<!-- ss-comprar critical v" . esc_html(self::VERSION) . " -->\n";
-		echo '<style id="ss-comprar-critical" data-no-optimize="1">' . $css . "</style>\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		echo '<style id="ss-comprar-critical" data-no-optimize="1">' . implode("\n", $chunks) . "</style>\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	}
 
 	public static function assets(): void {
