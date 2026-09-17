@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: Sorteo Seguro – Compra bono precargado
- * Description: Página /oferta/{slug}/ (clone de compra directa) con DigiPacks y bono vía Promo Engine.
+ * Description: Página /bonificaciones/{slug}/ (clone de compra directa) con DigiPacks y bono vía Promo Engine.
  * Author: Sorteo Seguro
- * Version: 1.0.3
+ * Version: 1.0.15
  *
- * Rollback: borrar este archivo (+ páginas bajo /oferta/ en WP si se desea).
+ * Rollback: borrar este archivo (+ páginas bajo /bonificaciones/ en WP si se desea).
  * No modifica /comprar/ ni fichas PDP.
  */
 if (!defined('ABSPATH')) {
@@ -14,12 +14,14 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Comprar_Bono {
 
-	const VERSION       = '1.0.3';
-	const PARENT_SLUG   = 'oferta';
+	const VERSION       = '1.0.15';
+	const PARENT_SLUG   = 'bonificaciones';
+	// Slug anterior (1.0.3): se migra solo a PARENT_SLUG y se redirige con 301.
+	const LEGACY_PARENT_SLUG = 'oferta';
 	const META_PRODUCT  = '_ss_oferta_product_id';
 	const OPTION_SEEDED = 'ss_oferta_pages_seeded_v2';
 
-	/** slug hijo bajo /oferta/ => product_id (misma base que /comprar/). */
+	/** slug hijo bajo /bonificaciones/ => product_id (misma base que /comprar/). */
 	private static array $product_slugs = [
 		'sorteo-vista-mar-dunares' => 1091,
 		'parcela'                  => 49102,
@@ -36,6 +38,7 @@ final class SorteoSeguro_Comprar_Bono {
 		add_action('wp_head', [__CLASS__, 'print_critical_css'], 3);
 		add_action('wp_enqueue_scripts', [__CLASS__, 'assets'], 55);
 		add_action('template_redirect', [__CLASS__, 'bypass_page_cache'], 0);
+		add_action('template_redirect', [__CLASS__, 'redirect_legacy_oferta'], 0);
 		add_action('template_redirect', [__CLASS__, 'redirect_parent_to_jeep'], 1);
 		add_action('template_redirect', [__CLASS__, 'boot_wc_cart'], 5);
 		add_action('template_redirect', [__CLASS__, 'capture_preload_session'], 6);
@@ -261,6 +264,7 @@ final class SorteoSeguro_Comprar_Bono {
 		if (self::is_oferta_child()) {
 			$classes[] = 'ss-comprar-template';
 			$classes[] = 'ss-oferta-template';
+			$classes[] = 'ss-bonificaciones-template';
 			$classes[] = 'ss-pdp-template';
 			if (self::should_preload_embedded_checkout()) {
 				$classes[] = 'woocommerce-checkout';
@@ -304,7 +308,7 @@ final class SorteoSeguro_Comprar_Bono {
 		}
 	}
 
-	/** Marca sesión para que el bono fixed/% de /oferta/ pueda aplicar. */
+	/** Marca sesión para que el bono fixed/% de /bonificaciones/ pueda aplicar. */
 	public static function capture_preload_session(): void {
 		if (!self::is_oferta_child()) {
 			return;
@@ -319,6 +323,32 @@ final class SorteoSeguro_Comprar_Bono {
 		} elseif (function_exists('WC') && WC()->session) {
 			WC()->session->set('ss_preload_product_id', $pid);
 		}
+	}
+
+	/** 301 permanente del slug anterior /oferta/* → /bonificaciones/* (ads, QR, menús). */
+	public static function redirect_legacy_oferta(): void {
+		if (self::PARENT_SLUG === self::LEGACY_PARENT_SLUG) {
+			return;
+		}
+		$uri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+		if ($uri === '') {
+			return;
+		}
+		$path = wp_parse_url($uri, PHP_URL_PATH);
+		if (!is_string($path) || $path === '') {
+			return;
+		}
+		if (!preg_match('#^/' . preg_quote(self::LEGACY_PARENT_SLUG, '#') . '(/.*)?$#', $path, $m)) {
+			return;
+		}
+		$rest = isset($m[1]) ? (string) $m[1] : '';
+		$target = home_url('/' . self::PARENT_SLUG . $rest);
+		$qs = wp_parse_url($uri, PHP_URL_QUERY);
+		if (is_string($qs) && $qs !== '') {
+			$target .= '?' . $qs;
+		}
+		wp_safe_redirect($target, 301);
+		exit;
 	}
 
 	public static function redirect_parent_to_jeep(): void {
@@ -419,7 +449,7 @@ final class SorteoSeguro_Comprar_Bono {
 	}
 
 	/**
-	 * En /oferta/ solo DigiPacks marcados en Promo Engine (sin 1 DigiTicket suelto).
+	 * En /bonificaciones/ solo DigiPacks marcados en Promo Engine (sin 1 DigiTicket suelto).
 	 *
 	 * @param array<string, mixed> $config
 	 * @return array<string, mixed>
@@ -434,7 +464,7 @@ final class SorteoSeguro_Comprar_Bono {
 		}
 		$config['embeddedCheckout'] = true;
 		$config['checkoutAnchor']   = '#ss-comprar-checkout';
-		$config['surface']          = 'oferta';
+		$config['surface']          = 'bonificaciones';
 
 		$rows = [];
 		if ($pid > 0 && class_exists('Promo_Engine_Stable') && method_exists('Promo_Engine_Stable', 'get_preload_page_campaigns')) {
@@ -583,6 +613,7 @@ final class SorteoSeguro_Comprar_Bono {
 	}
 
 	public static function maybe_seed_pages(): void {
+		$migrated = self::migrate_legacy_parent_slug();
 		if (get_option(self::OPTION_SEEDED) === 'yes') {
 			// Asegurar hijo Jeep aunque el flag ya exista (idempotente).
 			$parent_id = self::ensure_parent_page();
@@ -590,6 +621,9 @@ final class SorteoSeguro_Comprar_Bono {
 				foreach (self::$product_slugs as $slug => $product_id) {
 					self::ensure_child_page($parent_id, $slug, (int) $product_id);
 				}
+			}
+			if ($migrated) {
+				flush_rewrite_rules(false);
 			}
 			return;
 		}
@@ -604,6 +638,57 @@ final class SorteoSeguro_Comprar_Bono {
 			self::ensure_child_page($parent_id, $slug, (int) $product_id);
 		}
 		update_option(self::OPTION_SEEDED, 'yes', false);
+		if ($migrated) {
+			flush_rewrite_rules(false);
+		}
+	}
+
+	/**
+	 * Migración 1.0.3 → 1.0.4: renombra la página padre /oferta/ a /bonificaciones/.
+	 * Los hijos conservan slug (su URL cambia sola por jerarquía) y se retitulan
+	 * de "Oferta — X" a "Bonificación — X". Idempotente. Devuelve true si cambió algo.
+	 */
+	private static function migrate_legacy_parent_slug(): bool {
+		if (self::PARENT_SLUG === self::LEGACY_PARENT_SLUG) {
+			return false;
+		}
+		if (get_page_by_path(self::PARENT_SLUG) instanceof WP_Post) {
+			return false; // Ya existe el nuevo padre: no tocar nada (evita colisiones).
+		}
+		$legacy = get_page_by_path(self::LEGACY_PARENT_SLUG);
+		if (!$legacy instanceof WP_Post || (int) $legacy->post_parent !== 0) {
+			return false;
+		}
+		$changed = false;
+		$updated = function_exists('wp_update_post')
+			? wp_update_post([
+				'ID'         => (int) $legacy->ID,
+				'post_name'  => self::PARENT_SLUG,
+				'post_title' => 'Bonificaciones',
+			], true)
+			: 0;
+		if (is_wp_error($updated) || (int) $updated <= 0) {
+			return false;
+		}
+		$changed = true;
+		$children = get_posts([
+			'post_type'      => 'page',
+			'post_status'    => 'any',
+			'post_parent'    => (int) $legacy->ID,
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+		]);
+		foreach ($children as $child_id) {
+			$title = (string) get_post_field('post_title', (int) $child_id);
+			if (strpos($title, 'Oferta — ') === 0) {
+				wp_update_post([
+					'ID'         => (int) $child_id,
+					'post_title' => 'Bonificación — ' . substr($title, strlen('Oferta — ')),
+				]);
+			}
+		}
+		return $changed;
 	}
 
 	private static function ensure_parent_page(): int {
@@ -612,7 +697,7 @@ final class SorteoSeguro_Comprar_Bono {
 			return (int) $parent->ID;
 		}
 		$parent_id = wp_insert_post([
-			'post_title'   => 'Oferta',
+			'post_title'   => 'Bonificaciones',
 			'post_name'    => self::PARENT_SLUG,
 			'post_status'  => 'publish',
 			'post_type'    => 'page',
@@ -633,9 +718,9 @@ final class SorteoSeguro_Comprar_Bono {
 
 		$title = function_exists('get_the_title') ? get_the_title($product_id) : '';
 		if ($title === '') {
-			$title = 'Oferta ' . ucwords(str_replace('-', ' ', $slug));
+			$title = 'Bonificación ' . ucwords(str_replace('-', ' ', $slug));
 		} else {
-			$title = 'Oferta — ' . $title;
+			$title = 'Bonificación — ' . $title;
 		}
 
 		wp_insert_post([

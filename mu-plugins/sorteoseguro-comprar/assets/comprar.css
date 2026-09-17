@@ -84,7 +84,7 @@ body.ss-comprar-index {
 			"media buy"
 			"marquee buy"
 			"below buy"
-			"checkout checkout";
+			"checkout checkout" !important;
 		gap: 1.5rem;
 		align-items: start;
 	}
@@ -99,7 +99,7 @@ body.ss-comprar-index {
 
 	.ss-comprar__buy {
 		grid-area: buy;
-		grid-row: 1 / 4;
+		grid-row: 1 / 4 !important;
 		position: static;
 		top: auto;
 		padding: 1.35rem 1.25rem 1.25rem;
@@ -114,8 +114,9 @@ body.ss-comprar-index {
 	}
 
 	.ss-comprar__layout > .ss-pdp-marquee {
-		grid-area: marquee;
+		grid-area: marquee !important;
 		min-width: 0;
+		width: 100%;
 	}
 
 	.ss-comprar__below {
@@ -124,14 +125,14 @@ body.ss-comprar-index {
 	}
 
 	.ss-comprar-checkout-wrap {
-		grid-area: checkout;
-		grid-column: 1 / -1;
-		grid-row: 4;
+		grid-area: checkout !important;
+		grid-column: 1 / -1 !important;
+		grid-row: 4 !important;
 		max-width: none;
 		margin: 0;
 		padding: 0;
 		position: relative;
-		z-index: 2;
+		z-index: 1;
 	}
 }
 

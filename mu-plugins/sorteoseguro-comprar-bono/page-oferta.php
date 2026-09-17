@@ -2,7 +2,7 @@
 /**
  * Template: Oferta bono precargado (Sorteo Seguro)
  *
- * Superficie /oferta/{slug}/ — mismo layout que compra directa + packs filtrados + bono sesión.
+ * Superficie /bonificaciones/{slug}/ — mismo layout que compra directa + packs filtrados + bono sesión.
  */
 if (!defined('ABSPATH')) {
 	exit;

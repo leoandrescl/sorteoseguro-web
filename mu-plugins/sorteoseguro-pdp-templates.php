@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_PDP_Templates {
 
-	const VERSION = '1.0.37';
+	const VERSION = '1.0.38';
 	const META_YOUTUBE = '_ss_pdp_youtube_url';
 	const META_FILE    = '_ss_pdp_video_file';
 	const META_MARQUEE = '_ss_pdp_marquee_ids';
@@ -218,6 +218,36 @@ final class SorteoSeguro_PDP_Templates {
 			$id = (int) $part;
 			if ($id > 0 && !in_array($id, $ids, true)) {
 				$ids[] = $id;
+			}
+		}
+		if ($ids !== []) {
+			return $ids;
+		}
+		return self::product_gallery_ids($product_id);
+	}
+
+	/**
+	 * Galería WooCommerce (destacada + miniaturas) para el carrusel si no hay IDs propios.
+	 *
+	 * @return list<int>
+	 */
+	public static function product_gallery_ids(int $product_id): array {
+		if ($product_id <= 0 || !function_exists('wc_get_product')) {
+			return [];
+		}
+		$product = wc_get_product($product_id);
+		if (!$product) {
+			return [];
+		}
+		$ids = [];
+		$thumb = (int) $product->get_image_id();
+		if ($thumb > 0) {
+			$ids[] = $thumb;
+		}
+		foreach ($product->get_gallery_image_ids() as $gid) {
+			$gid = (int) $gid;
+			if ($gid > 0 && !in_array($gid, $ids, true)) {
+				$ids[] = $gid;
 			}
 		}
 		return $ids;
