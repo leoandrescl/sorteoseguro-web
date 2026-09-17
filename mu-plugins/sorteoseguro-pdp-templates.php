@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_PDP_Templates {
 
-	const VERSION = '1.0.39';
+	const VERSION = '1.0.40';
 	const META_YOUTUBE = '_ss_pdp_youtube_url';
 	const META_FILE    = '_ss_pdp_video_file';
 	const META_MARQUEE = '_ss_pdp_marquee_ids';

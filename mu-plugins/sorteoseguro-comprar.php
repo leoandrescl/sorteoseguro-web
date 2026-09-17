@@ -3,7 +3,7 @@
  * Plugin Name: Sorteo Seguro – Compra directa
  * Description: Página /comprar/{slug}/ con packs + checkout embebido.
  * Author: Sorteo Seguro
- * Version: 1.0.28
+ * Version: 1.0.29
  *
  * Rollback: borrar este archivo y la carpeta sorteoseguro-comprar/ (+ páginas bajo /comprar/ en WP si se desea).
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Comprar {
 
-	const VERSION        = '1.0.28';
+	const VERSION        = '1.0.29';
 	const DIR            = __DIR__ . '/sorteoseguro-comprar';
 	const PARENT_SLUG    = 'comprar';
 	const META_PRODUCT   = '_ss_comprar_product_id';

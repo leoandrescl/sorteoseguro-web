@@ -3,7 +3,7 @@
  * Plugin Name: Sorteo Seguro – Compra bono precargado
  * Description: Página /bonificaciones/{slug}/ (clone de compra directa) con DigiPacks y bono vía Promo Engine.
  * Author: Sorteo Seguro
- * Version: 1.0.16
+ * Version: 1.0.17
  *
  * Rollback: borrar este archivo (+ páginas bajo /bonificaciones/ en WP si se desea).
  * No modifica /comprar/ ni fichas PDP.
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Comprar_Bono {
 
-	const VERSION       = '1.0.16';
+	const VERSION       = '1.0.17';
 	const PARENT_SLUG   = 'bonificaciones';
 	// Slug anterior (1.0.3): se migra solo a PARENT_SLUG y se redirige con 301.
 	const LEGACY_PARENT_SLUG = 'oferta';
