@@ -17,8 +17,8 @@ $ss = [
 	],
 	'prizes' => [
 		['badge' => '1º PREMIO', 'icon' => 'house', 'name' => 'Gran Casa Vista Mar', 'meta' => 'Mantagua · Quinta Región', 'image' => 'featured'],
-		['badge' => '2º PREMIO', 'icon' => 'car', 'name' => 'MG New HS 1.5T DCT DLX', 'meta' => 'Automático · Año 2026', 'image' => 2266],
-		['badge' => '3º PREMIO', 'icon' => 'car', 'name' => 'MG3 1.5 AT COM', 'meta' => 'Automático · Año 2026', 'image' => 2265],
+		['badge' => '2º PREMIO', 'icon' => 'car', 'name' => 'MG New HS 1.5T DCT DLX', 'meta' => 'Automático · Año 2026', 'image' => 'https://sorteoseguro.cl/wp-content/uploads/2026/09/casa-premio-2.jpeg'],
+		['badge' => '3º PREMIO', 'icon' => 'car', 'name' => 'MG3 1.5 AT COM', 'meta' => 'Automático · Año 2026', 'image' => 'https://sorteoseguro.cl/wp-content/uploads/2026/09/casa-premio-3.jpeg'],
 	],
 	'discover_title' => 'DESCUBRE LA CASA',
 	'discover_icon'  => 'house',
