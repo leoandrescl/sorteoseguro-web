@@ -945,7 +945,7 @@ body.ss-pdp-template .ss-pdp__right.purchase-panel > .ss-packs-wrap {
 	margin: 0 0 0.75rem;
 	font-size: 1.35rem;
 	line-height: 1.25;
-	font-weight: 900;
+	font-weight: 600;
 	color: var(--ss-pdp-purple);
 }
 .ss-pdp .countdown-container {

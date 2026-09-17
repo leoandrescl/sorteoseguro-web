@@ -62,6 +62,7 @@ body.ss-comprar-index {
 	margin: 0;
 	font-size: clamp(1.35rem, 2.2vw, 1.75rem);
 	line-height: 1.2;
+	font-weight: 600;
 }
 
 .ss-comprar__below {
