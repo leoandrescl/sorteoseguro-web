@@ -541,13 +541,14 @@ body.ss-pdp-template .ss-pdp__right.purchase-panel > .ss-packs-wrap {
 .ss-pdp-prize__img,
 .ss-pdp-prize__placeholder {
 	width: 100%;
-	aspect-ratio: 4 / 3;
-	object-fit: contain;
-	object-position: center bottom;
+	aspect-ratio: 4 / 2.7;
+	object-fit: fill;
+	object-position: center center;
 	background: #f4f5f8;
 	margin-top: auto;
 	border-radius: 0;
 	display: block;
+	margin-bottom: 10px;
 }
 .ss-pdp-prize__placeholder {
 	display: flex;
@@ -1076,10 +1077,6 @@ body.ss-pdp-template .ss-pdp__right.purchase-panel > .ss-packs-wrap {
 		margin: 0.12rem 0 0.35rem;
 		padding: 0 0.1rem;
 	}
-	.ss-pdp-prizes:not([data-count="1"]):not([data-count="2"]) .ss-pdp-prize__img,
-	.ss-pdp-prizes:not([data-count="1"]):not([data-count="2"]) .ss-pdp-prize__placeholder {
-		aspect-ratio: 1 / 1;
-	}
 	.ss-pdp-prizes[data-count="1"] {
 		grid-template-columns: 1fr;
 	}
@@ -1159,4 +1156,13 @@ body.ss-pdp-template .ss-pdp__right.purchase-panel > .ss-packs-wrap {
 		flex-basis: 72px;
 		height: 54px;
 	}
+}
+
+/* Premios v1.0.42: ratio 4/2.7 con mayor especificidad para prevalecer ante CSS combinado cacheado */
+.ss-pdp-prizes .ss-pdp-prize__img,
+.ss-pdp-prizes .ss-pdp-prize__placeholder {
+	aspect-ratio: 4 / 2.7;
+	object-fit: fill;
+	object-position: center center;
+	margin-bottom: 10px;
 }

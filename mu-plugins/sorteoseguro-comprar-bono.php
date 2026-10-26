@@ -491,6 +491,7 @@ final class SorteoSeguro_Comprar_Bono {
 					'buy'        => $buy,
 					'pay'        => $pay,
 					'badge'      => $badge,
+					'color'      => (string) ($c['color'] ?? ''),
 					'sort'       => (int) ($c['sort'] ?? 10),
 					'unit_price' => (float) ($c['unit_price'] ?? $unit),
 					'list_price' => (float) ($c['list_price'] ?? ($unit * $buy)),

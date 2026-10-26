@@ -563,6 +563,85 @@ final class SorteoSeguro_Pending_Payment_Reminders {
 		);
 	}
 
+	private static function render_kpi_summary(): void {
+		if (!function_exists('wc_get_orders')) {
+			return;
+		}
+
+		$orders = wc_get_orders(
+			array(
+				'limit'      => 2000,
+				'return'     => 'objects',
+				'orderby'    => 'date',
+				'order'      => 'DESC',
+				'meta_query' => array(
+					'relation' => 'OR',
+					array('key' => self::META_R1, 'compare' => 'EXISTS'),
+					array('key' => self::META_R2, 'compare' => 'EXISTS'),
+				),
+			)
+		);
+
+		$contacted = 0;
+		$emails    = 0;
+		$paid      = 0;
+		$revenue   = 0.0;
+
+		foreach ((array) $orders as $order) {
+			if (!$order instanceof WC_Order) {
+				continue;
+			}
+			$r1 = (string) $order->get_meta(self::META_R1);
+			$r2 = (string) $order->get_meta(self::META_R2);
+			if ($r1 === '' && $r2 === '') {
+				continue;
+			}
+			$contacted++;
+			if ($r1 !== '') {
+				$emails++;
+			}
+			if ($r2 !== '') {
+				$emails++;
+			}
+			if (in_array($order->get_status(), array('processing', 'completed'), true)) {
+				$paid++;
+				$revenue += (float) $order->get_total();
+			}
+		}
+
+		$rate  = $contacted > 0 ? round(($paid / $contacted) * 100, 1) : 0.0;
+		$money = function_exists('wc_price') ? wp_strip_all_tags(wc_price($revenue)) : number_format_i18n($revenue, 0);
+
+		$card = static function (string $label, string $value, string $sub = '') {
+			echo '<div style="background:#fff;border:1px solid #c3c4c7;border-radius:6px;padding:12px 16px;min-width:150px;">';
+			echo '<div style="color:#666;font-size:12px;">' . esc_html($label) . '</div>';
+			echo '<div style="font-size:22px;font-weight:600;margin-top:4px;color:#1d2327;">' . esc_html($value) . '</div>';
+			if ($sub !== '') {
+				echo '<div style="color:#8a8f98;font-size:11px;margin-top:2px;">' . esc_html($sub) . '</div>';
+			}
+			echo '</div>';
+		};
+
+		echo '<h2 style="margin-bottom:4px;">Resumen de la campaña de recordatorios de pago</h2>';
+		echo '<p class="description" style="margin:0 0 10px;">Considera los pedidos a los que se les envió al menos un recordatorio (histórico completo).</p>';
+		echo '<div style="display:flex;gap:14px;flex-wrap:wrap;margin:0 0 14px;">';
+		$card('Clientes contactados', (string) $contacted);
+		$card('Correos enviados (total)', (string) $emails, 'automáticos + manuales');
+		$card('Pagaron', (string) $paid, $rate . ' % de los contactados');
+		$card('Monto recuperado', $money);
+		echo '</div>';
+
+		echo '<div style="max-width:980px;margin:0 0 20px;padding:12px 16px;background:#fff;border:1px solid #c3c4c7;border-radius:6px;">';
+		echo '<p style="margin:0 0 8px;"><strong>¿Qué significa cada indicador?</strong></p>';
+		echo '<ul style="margin:0;padding-left:20px;color:#555;line-height:1.6;">';
+		echo '<li><strong>Clientes contactados</strong>: pedidos a los que se envió al menos un recordatorio de pago (1.º o 2.º; automático o manual). A cada cliente se le cuenta una sola vez.</li>';
+		echo '<li><strong>Correos enviados (total)</strong>: cuántos recordatorios salieron en total (1.º + 2.º; automáticos + manuales). Un cliente puede recibir 2, por eso puede ser mayor que "Clientes contactados".</li>';
+		echo '<li><strong>Pagaron</strong>: de los contactados, cuántos completaron el pago.</li>';
+		echo '<li><strong>Monto recuperado</strong>: suma de esas compras.</li>';
+		echo '</ul>';
+		echo '</div>';
+	}
+
 	public static function render_admin_page(): void {
 		if (!current_user_can('manage_woocommerce')) {
 			return;
@@ -608,6 +687,8 @@ final class SorteoSeguro_Pending_Payment_Reminders {
 		if ($error !== '') {
 			echo '<div class="notice notice-error"><p>' . esc_html($error) . '</p></div>';
 		}
+
+		self::render_kpi_summary();
 
 		echo '<h2>Configuración de tiempos</h2>';
 		echo '<form method="post" style="max-width:640px;background:#fff;border:1px solid #c3c4c7;padding:16px 20px;margin:12px 0 24px;">';

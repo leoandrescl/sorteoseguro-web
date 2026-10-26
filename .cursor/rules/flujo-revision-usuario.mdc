@@ -1,0 +1,12 @@
+---
+description: Flujo de trabajo — el agente programa y despliega; el usuario revisa
+alwaysApply: true
+---
+
+# Flujo de trabajo (revisión)
+
+- El agente **no revisa** el diseño/resultado visual por su cuenta ni hace bucles de verificación en navegador. **El usuario revisa.**
+- El agente se encarga del **código**: implementa, hace backup, valida sintaxis (`php -l`, `node`), sube a producción y purga caché.
+- Al terminar, **avisar que ya está arriba** (URL/versión) para que el usuario lo revise.
+- Trabajar **versión por versión**: un cambio/fase por vez; no adelantar fases sin pedido.
+- No commitear ni desplegar nada que el usuario no haya pedido explícitamente.

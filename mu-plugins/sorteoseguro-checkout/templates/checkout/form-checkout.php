@@ -72,6 +72,13 @@ $ico_check = class_exists('SorteoSeguro_Checkout') ? SorteoSeguro_Checkout::icon
 							</p>
 						</div>
 					</div>
+
+					<?php
+					// Región y Comuna (Chile). Aislado en mu-plugin; si no está, no se pinta nada.
+					if (class_exists('SorteoSeguro_Checkout_Location')) {
+						SorteoSeguro_Checkout_Location::render_fields($checkout);
+					}
+					?>
 				</div>
 
 				<?php

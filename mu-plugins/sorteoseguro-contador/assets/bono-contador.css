@@ -1,0 +1,556 @@
+/* Sorteo Seguro – Contador bono (hardcoded). Independiente del Promo Engine. */
+
+@font-face {
+	font-family: "Caveat";
+	font-style: normal;
+	font-weight: 400 700;
+	font-display: swap;
+	src: url("caveat-latin.woff2") format("woff2");
+}
+
+.ss-contador {
+	--ss-contador-navy: #0b0b33;
+	--ss-contador-purple: #5b1cd4;
+	--ss-contador-purple-soft: #f4e5fc;
+	--ss-contador-yellow: #fecf3b;
+	--ss-contador-yellow-line: #fec00d;
+	--ss-contador-box: #281f60;
+	--ss-contador-timer-bg: #f3f1fe;
+	--ss-contador-note-bg: #fdf5e0;
+	--ss-contador-ink: #3a3a46;
+
+	display: block;
+	box-sizing: border-box;
+	position: relative;
+	overflow: hidden;
+	background: linear-gradient(180deg, #ffffff 0%, #fbf9ff 100%);
+	border: 1px solid #ece6f8;
+	border-radius: 18px;
+	padding: 14px 14px 14px;
+	margin: 0 0 14px;
+	box-shadow: 0 10px 26px rgba(31, 36, 48, 0.06);
+	font-family: var(--ss-font-family, "Montserrat", "Poppins", "Segoe UI", sans-serif);
+	color: var(--ss-contador-ink);
+}
+
+.ss-contador *,
+.ss-contador *::before,
+.ss-contador *::after {
+	box-sizing: border-box;
+}
+
+/* Wrappers: en el layout angosto no alteran el flujo (los hijos apilan igual) */
+.ss-contador__top,
+.ss-contador__band {
+	display: contents;
+}
+
+.ss-contador__timer-clock {
+	display: none;
+}
+
+/* Encabezado: reloj + pill */
+.ss-contador__head {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	margin: 0 0 10px;
+}
+
+.ss-contador__clock {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 30px;
+	height: 30px;
+	flex: 0 0 30px;
+	border-radius: 50%;
+	background: #ede4fb;
+	color: var(--ss-contador-purple);
+}
+
+.ss-contador__clock svg {
+	width: 18px;
+	height: 18px;
+	display: block;
+}
+
+.ss-contador__pill {
+	display: inline-block;
+	background: var(--ss-contador-purple-soft);
+	color: var(--ss-contador-purple);
+	font-size: 11.5px;
+	font-weight: 800;
+	letter-spacing: 0.07em;
+	line-height: 1;
+	text-transform: uppercase;
+	padding: 8px 14px;
+	border-radius: 999px;
+	white-space: nowrap;
+}
+
+/* Cuarto de círculo lila con frase manuscrita (arriba a la derecha) */
+.ss-contador__blob {
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: 200px;
+	height: 168px;
+	z-index: 0;
+	pointer-events: none;
+}
+
+.ss-contador__blob::before {
+	content: "";
+	position: absolute;
+	top: -144px;
+	right: -84px;
+	width: 268px;
+	height: 268px;
+	border-radius: 50%;
+	background: #f1edfb;
+}
+
+.ss-contador__blob-text {
+	position: absolute;
+	top: 12px;
+	right: 8px;
+	width: 138px;
+	transform: rotate(-7deg);
+	font-family: "Caveat", "Merienda", "Segoe Script", cursive !important;
+	color: var(--ss-contador-purple);
+	font-weight: 700;
+	font-size: 1.12rem;
+	line-height: 1.02;
+	text-align: center;
+}
+
+/* El contenido va por encima del cuarto de círculo */
+.ss-contador__head,
+.ss-contador__title,
+.ss-contador__sub,
+.ss-contador__ticket,
+.ss-contador__timer,
+.ss-contador__note,
+.ss-contador__foot {
+	position: relative;
+	z-index: 1;
+}
+
+/* Titular */
+.ss-contador__title {
+	margin: 0;
+	font-weight: 800;
+	line-height: 1.04;
+	letter-spacing: -0.01em;
+}
+
+.ss-contador__title-1 {
+	display: block;
+	color: var(--ss-contador-navy);
+	font-size: clamp(1.4rem, 1.05rem + 1.7vw, 1.8rem);
+}
+
+.ss-contador__title-2 {
+	display: block;
+	color: var(--ss-contador-purple);
+	font-size: clamp(1.5rem, 1.1rem + 2vw, 1.95rem);
+}
+
+.ss-contador__rule {
+	display: block;
+	width: 86px;
+	height: 5px;
+	border-radius: 999px;
+	background: var(--ss-contador-yellow-line);
+	margin: 9px 0 11px;
+}
+
+.ss-contador__sub {
+	margin: 0;
+	color: var(--ss-contador-ink);
+	font-size: 0.95rem;
+	font-weight: 500;
+	line-height: 1.32;
+}
+
+.ss-contador__sub strong {
+	color: var(--ss-contador-navy);
+	font-weight: 800;
+}
+
+/* Ticket */
+.ss-contador__ticket {
+	position: relative;
+	margin: 13px 0 0;
+	container-type: inline-size;
+}
+
+.ss-contador__ticket-bg {
+	display: block;
+	width: 100%;
+	height: auto;
+	border: 0;
+}
+
+.ss-contador__ticket-copy {
+	position: absolute;
+	left: 3%;
+	top: 8%;
+	width: 66%;
+	height: 84%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5cqw;
+	text-align: center;
+	color: #fff;
+	line-height: 1.05;
+	transform: rotate(-2deg);
+}
+
+.ss-contador__ticket-kicker {
+	font-size: 3.9cqw;
+	font-weight: 700;
+	letter-spacing: 0.13em;
+}
+
+.ss-contador__ticket-amount {
+	font-size: 13cqw;
+	font-weight: 900;
+	letter-spacing: -0.02em;
+	line-height: 0.92;
+	white-space: nowrap;
+	text-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+}
+
+.ss-contador__ticket-label {
+	font-size: 5cqw;
+	font-weight: 800;
+	letter-spacing: 0.09em;
+}
+
+.ss-contador__ticket-note {
+	font-size: 3.4cqw;
+	font-weight: 600;
+	letter-spacing: 0.09em;
+	opacity: 0.95;
+}
+
+.ss-contador__ticket-gift {
+	position: absolute;
+	right: 1%;
+	bottom: 11%;
+	width: 28%;
+	text-align: center;
+	color: var(--ss-contador-navy);
+	font-size: 3cqw;
+	font-weight: 800;
+	line-height: 0.95;
+	letter-spacing: 0.02em;
+	transform: rotate(0deg);
+}
+
+/* Contador */
+.ss-contador__timer {
+	background: var(--ss-contador-timer-bg);
+	border-radius: 16px;
+	padding: 14px 12px;
+	margin: 13px 0 0;
+}
+
+.ss-contador__timer-title {
+	margin: 0 0 3px;
+	color: var(--ss-contador-purple);
+	font-size: 0.95rem;
+	font-weight: 800;
+	letter-spacing: 0.01em;
+}
+
+.ss-contador__timer-sub {
+	margin: 0 0 13px;
+	color: var(--ss-contador-ink);
+	font-size: 0.88rem;
+	font-weight: 500;
+}
+
+.ss-contador__units {
+	display: flex;
+	align-items: flex-start;
+	justify-content: center;
+	gap: 6px;
+}
+
+.ss-contador__unit {
+	flex: 1 1 0;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.ss-contador__value {
+	display: block;
+	width: 100%;
+	background: var(--ss-contador-box);
+	color: #fff;
+	border-radius: 12px;
+	padding: 11px 0;
+	font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2rem);
+	font-weight: 800;
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0.01em;
+	line-height: 1;
+	text-align: center;
+}
+
+.ss-contador__label {
+	margin-top: 7px;
+	color: #2b2b3a;
+	font-size: 0.66rem;
+	font-weight: 700;
+	letter-spacing: 0.11em;
+	text-transform: uppercase;
+}
+
+.ss-contador__sep {
+	align-self: flex-start;
+	margin-top: 0.85rem;
+	color: var(--ss-contador-purple);
+	font-size: 1.35rem;
+	font-weight: 800;
+	line-height: 1;
+}
+
+/* Nota */
+.ss-contador__note {
+	display: flex;
+	align-items: center;
+	gap: 11px;
+	background: var(--ss-contador-note-bg);
+	border-radius: 14px;
+	padding: 12px 14px;
+	margin: 12px 0 0;
+}
+
+.ss-contador__note-ico {
+	flex: 0 0 30px;
+	width: 30px;
+	height: 30px;
+	color: #f4b41a;
+}
+
+.ss-contador__note-ico svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+.ss-contador__note p {
+	margin: 0;
+	color: var(--ss-contador-ink);
+	font-size: 0.85rem;
+	font-weight: 500;
+	line-height: 1.35;
+}
+
+.ss-contador__note strong {
+	color: var(--ss-contador-navy);
+	font-weight: 800;
+}
+
+/* Pie: confianza en cada concurso */
+.ss-contador__foot {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin: 14px 2px 2px;
+}
+
+.ss-contador__foot-line {
+	flex: 1 1 auto;
+	height: 1px;
+	background: #d9d6e2;
+}
+
+.ss-contador__foot-text {
+	color: #9a97a8;
+	font-size: 0.62rem;
+	font-weight: 600;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+/* Variante home: centrada debajo del hero */
+.ss-home-contador {
+	padding: 26px 0 6px;
+}
+
+.ss-contador--home {
+	max-width: 560px;
+	margin: 0 auto;
+}
+
+@media (min-width: 981px) {
+	/* Primer elemento del panel derecho: va antes del título del sorteo */
+	.ss-pdp__right.purchase-panel > .ss-contador {
+		order: -1 !important;
+	}
+}
+
+@media (min-width: 981px) {
+	/* Home: layout desktop horizontal */
+	.ss-contador--home {
+		max-width: none;
+		display: grid;
+		grid-template-columns: minmax(240px, 1fr) minmax(420px, 1.6fr) minmax(200px, 0.8fr);
+		grid-template-areas:
+			"top ticket script"
+			"band band band"
+			"foot foot foot";
+		column-gap: 20px;
+		row-gap: 0;
+		align-items: center;
+		padding: 22px 26px 18px;
+	}
+
+	.ss-contador--home .ss-contador__top {
+		display: block;
+		grid-area: top;
+	}
+
+	.ss-contador--home .ss-contador__ticket {
+		grid-area: ticket;
+		margin: 0;
+	}
+
+	.ss-contador--home .ss-contador__band {
+		display: flex;
+		grid-area: band;
+		align-items: center;
+		gap: 26px;
+		background: var(--ss-contador-timer-bg);
+		border-radius: 16px;
+		padding: 16px 24px;
+		margin-top: 22px;
+	}
+
+	.ss-contador--home .ss-contador__timer {
+		background: transparent;
+		border-radius: 0;
+		padding: 0;
+		margin: 0;
+		flex: 1 1 auto;
+		display: grid;
+		grid-template-columns: auto auto 1fr;
+		grid-template-areas:
+			"clock title units"
+			"clock sub units";
+		align-items: center;
+		column-gap: 16px;
+	}
+
+	.ss-contador--home .ss-contador__timer-clock {
+		display: inline-flex;
+		grid-area: clock;
+		align-items: center;
+		justify-content: center;
+		width: 46px;
+		height: 46px;
+		border-radius: 50%;
+		background: #ffffff;
+		color: var(--ss-contador-purple);
+	}
+
+	.ss-contador--home .ss-contador__timer-clock svg {
+		width: 26px;
+		height: 26px;
+		display: block;
+	}
+
+	.ss-contador--home .ss-contador__timer-title {
+		grid-area: title;
+		margin: 0;
+		align-self: end;
+	}
+
+	.ss-contador--home .ss-contador__timer-sub {
+		grid-area: sub;
+		margin: 0;
+		align-self: start;
+	}
+
+	.ss-contador--home .ss-contador__units {
+		grid-area: units;
+		justify-content: center;
+		gap: 10px;
+	}
+
+	.ss-contador--home .ss-contador__unit {
+		flex: 0 0 auto;
+	}
+
+	.ss-contador--home .ss-contador__value {
+		width: 74px;
+		padding: 9px 0;
+		font-size: 1.7rem;
+	}
+
+	.ss-contador--home .ss-contador__note {
+		background: transparent;
+		border-radius: 0;
+		padding: 0 0 0 26px;
+		margin: 0;
+		border-left: 1px solid #d9d6e2;
+		flex: 0 0 auto;
+		max-width: 340px;
+	}
+
+	.ss-contador--home .ss-contador__foot {
+		grid-area: foot;
+		margin-top: 18px;
+	}
+
+	.ss-contador--home .ss-contador__title-1 {
+		font-size: 2.1rem;
+	}
+
+	.ss-contador--home .ss-contador__title-2 {
+		font-size: 2.4rem;
+	}
+
+	.ss-contador--home .ss-contador__sub {
+		font-size: 1.05rem;
+	}
+
+	.ss-contador--home .ss-contador__blob {
+		width: 300px;
+		height: 240px;
+	}
+
+	.ss-contador--home .ss-contador__blob::before {
+		width: 400px;
+		height: 400px;
+		top: -240px;
+		right: -130px;
+	}
+
+	.ss-contador--home .ss-contador__blob-text {
+		top: 14px;
+		right: 10px;
+		width: 190px;
+		font-size: 1.55rem;
+	}
+}
+
+@media (max-width: 400px) {
+	.ss-contador {
+		padding: 12px;
+	}
+	.ss-contador__pill {
+		font-size: 10.5px;
+		padding: 7px 11px;
+	}
+}

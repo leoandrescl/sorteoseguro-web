@@ -223,3 +223,190 @@
 		});
 	});
 })();
+
+/* Región + Comuna (Chile) — combobox con buscador. Aislado: si no existe el bloque, no hace nada. */
+(function () {
+	function ready(fn) {
+		if (document.readyState !== 'loading') fn();
+		else document.addEventListener('DOMContentLoaded', fn);
+	}
+
+	function normalize(s) {
+		return (s == null ? '' : String(s))
+			.toLowerCase()
+			.normalize('NFD')
+			.replace(/[\u0300-\u036f]/g, '')
+			.trim();
+	}
+
+	ready(function () {
+		try {
+			var root = document.querySelector('[data-ss-loc]');
+			if (!root || root.getAttribute('data-ss-bound') === '1') return;
+			root.setAttribute('data-ss-bound', '1');
+
+			var dataEl = document.getElementById('ss-co-loc-data');
+			if (!dataEl) return;
+			var DATA;
+			try { DATA = JSON.parse(dataEl.textContent || '{}'); } catch (e) { return; }
+			var regions = (DATA && DATA.regions) || [];
+			if (!regions.length) return;
+
+			var byCode = {};
+			regions.forEach(function (r) { byCode[r.code] = r; });
+
+			var regionWrap = root.querySelector('[data-ss-combo="region"]');
+			var comunaWrap = root.querySelector('[data-ss-combo="comuna"]');
+			if (!regionWrap || !comunaWrap) return;
+
+			var regionInput = regionWrap.querySelector('.ss-co-combo__input');
+			var regionHidden = regionWrap.querySelector('input[type="hidden"]');
+			var comunaInput = comunaWrap.querySelector('.ss-co-combo__input');
+			var comunaHidden = comunaWrap.querySelector('input[type="hidden"]');
+
+			function fire(el) {
+				try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+				if (window.jQuery) window.jQuery(el).trigger('change');
+			}
+
+			function makeCombo(wrap, getItems, onSelect) {
+				var input = wrap.querySelector('.ss-co-combo__input');
+				var list = wrap.querySelector('.ss-co-combo__list');
+				var isRegion = wrap.getAttribute('data-ss-combo') === 'region';
+				var open = false;
+				var active = -1;
+				var items = [];
+
+				function close() {
+					open = false;
+					active = -1;
+					list.hidden = true;
+					list.innerHTML = '';
+					wrap.classList.remove('is-open');
+					input.setAttribute('aria-expanded', 'false');
+					input.removeAttribute('aria-activedescendant');
+				}
+
+				function render(q) {
+					var matches = getItems(q).slice(0, 300);
+					items = matches;
+					list.innerHTML = '';
+					if (!matches.length) { close(); return; }
+					matches.forEach(function (it, idx) {
+						var li = document.createElement('li');
+						li.className = 'ss-co-combo__opt';
+						li.id = (isRegion ? 'ss_region_opt_' : 'ss_comuna_opt_') + idx;
+						li.setAttribute('role', 'option');
+						li.textContent = it.label;
+						li.addEventListener('mousedown', function (ev) { ev.preventDefault(); choose(idx); });
+						list.appendChild(li);
+					});
+					active = -1;
+					open = true;
+					list.hidden = false;
+					wrap.classList.add('is-open');
+					input.setAttribute('aria-expanded', 'true');
+				}
+
+				function choose(idx) {
+					if (idx < 0 || idx >= items.length) return;
+					input.value = items[idx].label;
+					onSelect(items[idx]);
+					close();
+				}
+
+				function highlight() {
+					Array.prototype.forEach.call(list.children, function (li, i) {
+						li.classList.toggle('is-active', i === active);
+						if (i === active) li.setAttribute('aria-selected', 'true');
+						else li.removeAttribute('aria-selected');
+					});
+					if (active >= 0 && list.children[active]) input.setAttribute('aria-activedescendant', list.children[active].id);
+				}
+
+				input.addEventListener('focus', function () {
+					try { input.select(); } catch (e) {}
+					render('');
+				});
+				input.addEventListener('mousedown', function () {
+					if (!open) render('');
+				});
+				input.addEventListener('input', function () { render(input.value); });
+				input.addEventListener('keydown', function (e) {
+					if (e.key === 'ArrowDown') {
+						if (!open) render('');
+						e.preventDefault();
+						if (active < list.children.length - 1) { active++; highlight(); }
+					} else if (e.key === 'ArrowUp') {
+						e.preventDefault();
+						if (active > 0) { active--; highlight(); }
+					} else if (e.key === 'Enter') {
+						if (open && active >= 0) { e.preventDefault(); choose(active); }
+					} else if (e.key === 'Escape' || e.key === 'Tab') {
+						close();
+					}
+				});
+				document.addEventListener('click', function (e) {
+					if (!wrap.contains(e.target)) close();
+				});
+
+				return { close: close, setDisabled: function (d) { input.disabled = !!d; } };
+			}
+
+			function regionItems(q) {
+				var n = normalize(q);
+				return regions
+					.filter(function (r) { return !n || normalize(r.name).indexOf(n) >= 0; })
+					.map(function (r) { return { value: r.code, label: r.name }; });
+			}
+
+			function comunaItems(q) {
+				var n = normalize(q);
+				var r = byCode[regionHidden.value];
+				if (!r) return [];
+				return (r.communes || [])
+					.filter(function (c) { return !n || normalize(c).indexOf(n) >= 0; })
+					.map(function (c) { return { value: c, label: c }; });
+			}
+
+			var regionCombo = makeCombo(regionWrap, regionItems, function (it) {
+				regionHidden.value = it.value;
+				fire(regionHidden);
+				comunaInput.value = '';
+				comunaHidden.value = '';
+				fire(comunaHidden);
+				comunaCombo.setDisabled(false);
+			});
+
+			var comunaCombo = makeCombo(comunaWrap, comunaItems, function (it) {
+				comunaHidden.value = it.value;
+				fire(comunaHidden);
+			});
+
+			regionInput.addEventListener('input', function () {
+				var label = regionInput.value;
+				var r = regions.filter(function (x) { return x.name === label; })[0];
+				if (!r) {
+					regionHidden.value = '';
+					comunaInput.value = '';
+					comunaHidden.value = '';
+				} else {
+					regionHidden.value = r.code;
+					comunaCombo.setDisabled(false);
+				}
+			});
+
+			comunaInput.addEventListener('input', function () {
+				var r = byCode[regionHidden.value];
+				var list = r ? (r.communes || []) : [];
+				if (list.indexOf(comunaInput.value) === -1) {
+					comunaHidden.value = '';
+				}
+			});
+
+			comunaCombo.setDisabled(regionHidden.value === '');
+		} catch (e) {
+			/* Silencioso: nunca romper el checkout por este bloque. */
+		}
+	});
+})();

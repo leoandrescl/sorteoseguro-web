@@ -3,7 +3,7 @@
  * Plugin Name: Sorteo Seguro – Checkout
  * Description: Checkout clásico alineado al diseño (banner reserva, pasos, resumen, trust, legales).
  * Author: Sorteo Seguro
- * Version: 1.0.31
+ * Version: 1.0.36
  */
 if (!defined('ABSPATH')) {
 	exit;
@@ -11,10 +11,21 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Checkout {
 
-	const VERSION = '1.0.31';
+	const VERSION = '1.0.36';
 	const DIR     = __DIR__ . '/sorteoseguro-checkout';
 	const DEFAULT_GATEWAY = 'woo-mercado-pago-basic';
 	const PAGE_ID = 13;
+
+	/**
+	 * Orden de pasarelas en checkout: MP → Flow → TUU → MACH.
+	 * Flow conserva su nombre “Flow” (pedido/correos); en la UI lleva logo Flow + Webpay.
+	 */
+	const GATEWAY_ORDER = [
+		'woo-mercado-pago-basic',
+		'flowpayment',
+		'wcplugingateway',
+		'wc_mach',
+	];
 
 	/** Custom CSS & JS viejos de “finalizar compra” (ya en draft; dequeue por si reaparecen). */
 	const LEGACY_CCJ_IDS = [58350, 58352];
@@ -64,16 +75,23 @@ final class SorteoSeguro_Checkout {
 	}
 
 	/**
+	 * Orden fijo de pasarelas (MP, Flow/Webpay, TUU, MACH); el resto queda al final.
+	 *
 	 * @param array<string, WC_Payment_Gateway> $gateways
 	 * @return array<string, WC_Payment_Gateway>
 	 */
 	public static function prefer_mercado_pago_gateway(array $gateways): array {
-		if (!self::is_active_surface() || !isset($gateways[self::DEFAULT_GATEWAY])) {
+		if (!self::is_active_surface()) {
 			return $gateways;
 		}
-		$mp = $gateways[self::DEFAULT_GATEWAY];
-		unset($gateways[self::DEFAULT_GATEWAY]);
-		return array_merge([self::DEFAULT_GATEWAY => $mp], $gateways);
+		$sorted = [];
+		foreach (self::GATEWAY_ORDER as $id) {
+			if (isset($gateways[$id])) {
+				$sorted[$id] = $gateways[$id];
+				unset($gateways[$id]);
+			}
+		}
+		return $sorted + $gateways;
 	}
 
 	/**
@@ -105,16 +123,20 @@ final class SorteoSeguro_Checkout {
 		echo '<style id="ss-checkout-critical" data-no-optimize="1">' . $css . "</style>\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	}
 
-	/** Logos del footer (MP + Webpay Plus) en el selector de pago. */
+	/** Logos del selector de pago: MP, Webpay (Flow), TUU y MACH. */
 	public static function replace_gateway_icons($icon, $id = ''): string {
 		$map = [
 			'woo-mercado-pago-basic' => [
 				'src' => set_url_scheme(content_url('mu-plugins/sorteoseguro-chrome/assets/logo-mercado-pago.png'), 'https'),
 				'alt' => 'Mercado Pago',
 			],
+			'flowpayment'            => [
+				'src' => set_url_scheme(content_url('mu-plugins/sorteoseguro-chrome/assets/logo-web-pay-plus.png'), 'https'),
+				'alt' => 'Webpay',
+			],
 			'wcplugingateway'        => [
 				'src' => set_url_scheme(content_url('mu-plugins/sorteoseguro-chrome/assets/logo-web-pay-plus.png'), 'https'),
-				'alt' => 'Webpay Plus',
+				'alt' => 'Webpay',
 			],
 		];
 		if ($id === '' || !isset($map[$id])) {

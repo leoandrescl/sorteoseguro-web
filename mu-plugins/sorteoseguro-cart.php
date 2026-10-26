@@ -243,6 +243,10 @@ final class SorteoSeguro_Cart {
 				$tickets = preg_split('/\s*,\s*/', (string) $raw) ?: [];
 			}
 		}
+		// DigiTickets de regalo: se muestran integrados con los comprados.
+		if (!empty($cart_item['ss_gift_tickets']) && is_array($cart_item['ss_gift_tickets'])) {
+			$tickets = array_merge($tickets, array_map('strval', $cart_item['ss_gift_tickets']));
+		}
 		$tickets = array_values(array_filter(array_map('trim', $tickets)));
 		return $tickets;
 	}

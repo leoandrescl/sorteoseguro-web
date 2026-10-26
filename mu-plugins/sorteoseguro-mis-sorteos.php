@@ -118,6 +118,10 @@ final class SorteoSeguro_Mis_Sorteos {
 		if (method_exists($product, 'get_purchased_ticket_count')) {
 			$sold = (int) $product->get_purchased_ticket_count();
 		}
+		// Los DigiTickets de regalo no cuentan como vendidos.
+		if (class_exists('SorteoSeguro_Gift_Tickets')) {
+			$sold = max(0, $sold - SorteoSeguro_Gift_Tickets::count_gift_tickets_for_product((int) $product->get_id()));
+		}
 		if ($sold <= 0) {
 			$sold = (int) $product->get_total_sales();
 		}

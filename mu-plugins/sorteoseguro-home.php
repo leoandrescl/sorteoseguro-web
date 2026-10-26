@@ -3,7 +3,7 @@
  * Plugin Name: Sorteo Seguro – Home v2
  * Description: Plantilla PHP para la página Home v2 (ID 74938), con chrome header/footer.
  * Author: Sorteo Seguro
- * Version: 1.3.26
+ * Version: 1.3.47
  */
 if (!defined('ABSPATH')) {
 	exit;
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Home {
 
-	const VERSION = '1.3.26';
+	const VERSION = '1.3.47';
 	const PAGE_ID = 74938;
 
 	public static function init(): void {
@@ -118,6 +118,8 @@ final class SorteoSeguro_Home {
 			return;
 		}
 		echo "\n<!-- ss-home v" . esc_html(self::VERSION) . " -->\n";
+		echo '<link rel="preconnect" href="https://fonts.googleapis.com">' . "\n";
+		echo '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' . "\n";
 		echo '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&display=swap" media="all">' . "\n";
 		echo "<style id=\"ss-home-inline\">\n" . $css . "\n</style>\n";
 	}
@@ -181,7 +183,7 @@ final class SorteoSeguro_Home {
 	 * @return array<int, array{
 	 *   id:int,title:string,url:string,image:string,price:string,price_raw:float,
 	 *   category:string,category_slug:string,meta:string,end_date:string,end_ts:int,
-	 *   end_countdown:string,sold:int,max:int,progress:float
+	 *   end_countdown:string
 	 * }>
 	 */
 	public static function get_contest_cards(): array {
@@ -197,16 +199,6 @@ final class SorteoSeguro_Home {
 			if (!$product || $product->get_status() !== 'publish') {
 				continue;
 			}
-
-			$max  = (int) get_post_meta($id, '_lty_maximum_tickets', true);
-			$sold = 0;
-			if (method_exists($product, 'get_purchased_ticket_count')) {
-				$sold = (int) $product->get_purchased_ticket_count();
-			}
-			if ($max <= 0) {
-				$max = max($sold, 1);
-			}
-			$progress = min(100, round(($sold / $max) * 100, 1));
 
 			$end_raw = '';
 			if (method_exists($product, 'get_lty_end_date')) {
@@ -248,9 +240,6 @@ final class SorteoSeguro_Home {
 				'end_date'      => $end_raw,
 				'end_ts'        => $end_ts,
 				'end_countdown' => $end_countdown,
-				'sold'          => $sold,
-				'max'           => $max,
-				'progress'      => $progress,
 			];
 		}
 
@@ -610,6 +599,71 @@ final class SorteoSeguro_Home {
 
 		if (empty($config) || empty($config['enabled'])) {
 			return null;
+		}
+		return $config;
+	}
+
+	/**
+	 * Banner Cyber (home) — textos, packs, links y fin del contador.
+	 * Editable aquí o vía filtro `ss_home_cyber_config`.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public static function cyber_config(): array {
+		$config = [
+			'enabled'     => true,
+			'badge'       => 'Promoción Halloween por tiempo limitado',
+			'title_top'   => 'DESCUENTOS DE TERROR',
+			'title_main'  => 'HALLOWEEN',
+			'off_lead'    => 'MÁS DE UN',
+			'off_strong'  => '80%',
+			'off_tail'    => 'DE DESCUENTO',
+			'timer_label'    => 'PRECIO HALLOWEEN',
+			'timer_label_em' => 'TERMINA EN:',
+			'timer_units'    => ['Horas', 'Minutos', 'Segundos'],
+			'end'         => '2026-11-03 23:59:59',
+			'items'       => [
+				[
+					'key'        => 'vista',
+					'badge'      => 'Concurso Inmobiliario',
+					'badge_icon' => 'home',
+					'title'       => 'Vista Mar Dunares',
+					'pack_name'   => 'Pack Halloween',
+					'pack_accent' => 'Vista',
+					'qty'        => 30,
+					'price'      => '$50.000',
+					'cta'         => 'Ver pack Halloween Vista',
+					'url'         => 'https://sorteoseguro.cl/cyber/sorteo-vista-mar-dunares/',
+					'img'         => 'cyber-casa.jpg',
+					'img_alt'     => 'Casa Vista Mar Dunares',
+				],
+				[
+					'key'        => 'jeep',
+					'badge'      => 'Concurso Vehicular',
+					'badge_icon' => 'car',
+					'title'       => 'Jeep Avenger',
+					'pack_name'   => 'Pack Halloween',
+					'pack_accent' => 'Jeep',
+					'qty'        => 60,
+					'price'      => '$50.000',
+					'cta'         => 'Ver pack Halloween Jeep',
+					'url'         => 'https://sorteoseguro.cl/cyber/jeep-avenger/',
+					'img'         => 'cyber-jeep.jpg',
+					'img_alt'     => 'Jeep Avenger',
+				],
+			],
+			'trust'       => [
+				['icon' => 'shield_check', 'text' => 'Pago 100% seguro'],
+				['icon' => 'ticket_outline', 'text' => 'DigiTicket inmediato'],
+				['icon' => 'doc', 'text' => 'Bases ante Notario'],
+				['icon' => 'broadcast', 'text' => 'Resultados verificables'],
+			],
+		];
+
+		$config = apply_filters('ss_home_cyber_config', $config);
+
+		if (empty($config) || empty($config['enabled'])) {
+			return [];
 		}
 		return $config;
 	}

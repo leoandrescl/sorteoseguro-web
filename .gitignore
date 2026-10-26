@@ -40,6 +40,20 @@ _*.jpeg
 _*.png
 _*.json
 *.log
+*.prev
+_remote-*
+_lty-post-functions.php
+sorteoseguro-*-respaldo-*.php
+checkout-render.html
+_tmp-*
+
+# Root-level media & data exports (not deploy code)
+/*.png
+/*.jpg
+/*.jpeg
+/*.xlsx
+/*.docx
+/La Mejor Base de Datos*/
 
 # OS / IDE noise
 Thumbs.db
@@ -55,3 +69,7 @@ vendor/
 !.cursor/skills/
 !.cursor/skills/**
 .cursor/rules/*.bak*
+
+# Local junk
+._*
+/.tmp*

@@ -380,7 +380,7 @@ get_header();
 
 			<div class="ss-home-faq__visual" aria-hidden="true">
 				<img
-					src="<?php echo esc_url(content_url('mu-plugins/sorteoseguro-home/assets/faq-visual.png')); ?>"
+					src="<?php echo esc_url(content_url('mu-plugins/sorteoseguro-home/assets/faq-visual.jpeg')); ?>"
 					alt=""
 					width="440"
 					height="420"

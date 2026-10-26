@@ -17,6 +17,7 @@ the_post();
 $contests = class_exists('SorteoSeguro_Home') ? SorteoSeguro_Home::get_contest_cards() : [];
 $packs    = class_exists('SorteoSeguro_Home') ? SorteoSeguro_Home::get_pack_cards() : [];
 $promo    = class_exists('SorteoSeguro_Home') ? SorteoSeguro_Home::promo_config() : [];
+$cyber    = class_exists('SorteoSeguro_Home') ? SorteoSeguro_Home::cyber_config() : [];
 $wins     = class_exists('SorteoSeguro_Home') ? SorteoSeguro_Home::testimonials() : [];
 $partners = class_exists('SorteoSeguro_Home') ? SorteoSeguro_Home::partners() : [];
 $faqs     = class_exists('SorteoSeguro_Home') ? SorteoSeguro_Home::faq_teaser(5) : [];
@@ -262,6 +263,126 @@ get_header();
 		<?php endif; ?>
 	</section>
 
+	<!-- Banner Cyber -->
+	<?php if ($cyber) :
+		$cyber_end = '';
+		if (!empty($cyber['end'])) {
+			$cyber_dt = date_create((string) $cyber['end'], new DateTimeZone('America/Santiago'));
+			if ($cyber_dt instanceof DateTimeInterface) {
+				$cyber_end = $cyber_dt->format('c');
+			}
+		}
+		$cyber_units = !empty($cyber['timer_units']) && is_array($cyber['timer_units'])
+			? array_values($cyber['timer_units'])
+			: ['Horas', 'Minutos', 'Segundos'];
+		?>
+		<section class="ss-home-cyber" aria-label="Packs especiales Cyber"<?php echo $cyber_end !== '' ? ' data-ss-cyber-end="' . esc_attr($cyber_end) . '"' : ''; ?>>
+			<div class="ss-home__shell">
+				<div class="ss-home-cyber__stage">
+					<span class="ss-home-cyber__glow" aria-hidden="true"></span>
+
+					<span class="ss-home-cyber__decor" aria-hidden="true">
+						<svg class="ss-home-cyber__web is-tl" viewBox="0 0 100 100"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M0 0h100M0 0v100M0 0l74 74M0 0l96 42M0 0l42 96"/><path d="M24 0q0 24-24 24M48 0q0 48-48 48M74 0q0 74-74 74"/></g></svg>
+						<svg class="ss-home-cyber__web is-tr" viewBox="0 0 100 100"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M0 0h100M0 0v100M0 0l74 74M0 0l96 42M0 0l42 96"/><path d="M24 0q0 24-24 24M48 0q0 48-48 48M74 0q0 74-74 74"/></g></svg>
+					</span>
+
+					<header class="ss-home-cyber__head">
+						<span class="ss-home-cyber__badge">
+							<span class="ss-home-cyber__badge-ico" aria-hidden="true"><?php echo $ico['bolt']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+							<?php echo esc_html((string) $cyber['badge']); ?>
+						</span>
+						<p class="ss-home-cyber__kicker"><?php echo esc_html((string) $cyber['title_top']); ?></p>
+						<p class="ss-home-cyber__title"><?php echo esc_html((string) $cyber['title_main']); ?></p>
+						<p class="ss-home-cyber__off">
+							<span class="ss-home-cyber__off-ribbon">
+								<?php echo esc_html((string) $cyber['off_lead']); ?>
+								<strong><?php echo esc_html((string) $cyber['off_strong']); ?></strong>
+							</span>
+							<span class="ss-home-cyber__off-tail"><?php echo esc_html((string) $cyber['off_tail']); ?></span>
+						</p>
+					</header>
+
+					<div class="ss-home-cyber__grid">
+						<?php foreach ((array) $cyber['items'] as $item) :
+							$icon_key  = (string) ($item['badge_icon'] ?? 'home');
+							$item_icon = $ico[$icon_key] ?? $ico['home'];
+							$img       = SorteoSeguro_Home::hero_asset_url((string) $item['img']);
+							$img       = add_query_arg('v', SorteoSeguro_Home::VERSION, $img);
+							$img_alt   = (string) ($item['img_alt'] ?? $item['title']);
+							?>
+							<article class="ss-home-cyber__item is-<?php echo esc_attr(sanitize_html_class((string) $item['key'])); ?>">
+								<div class="ss-home-cyber__media" aria-hidden="true">
+									<img src="<?php echo esc_url($img); ?>" alt="<?php echo esc_attr($img_alt); ?>" loading="lazy" decoding="async">
+								</div>
+								<div class="ss-home-cyber__item-body">
+									<div class="ss-home-cyber__item-text">
+										<span class="ss-home-cyber__cat">
+											<span class="ss-home-cyber__cat-ico" aria-hidden="true"><?php echo $item_icon; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+											<?php echo esc_html((string) $item['badge']); ?>
+										</span>
+										<h3 class="ss-home-cyber__name"><?php echo esc_html((string) $item['title']); ?></h3>
+										<div class="ss-home-cyber__pack">
+											<span class="ss-home-cyber__pack-ico" aria-hidden="true"><?php echo $item_icon; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+											<span class="ss-home-cyber__pack-txt">
+												<span class="ss-home-cyber__pack-name">
+													<?php echo esc_html((string) $item['pack_name']); ?>
+													<?php if (!empty($item['pack_accent'])) : ?>
+														<span class="ss-home-cyber__pack-accent"><?php echo esc_html((string) $item['pack_accent']); ?></span>
+													<?php endif; ?>
+												</span>
+												<span class="ss-home-cyber__pack-qty">
+													<strong><?php echo (int) $item['qty']; ?></strong>
+													DigiTickets
+													<span class="ss-home-cyber__pack-price">| x <?php echo esc_html((string) $item['price']); ?></span>
+												</span>
+											</span>
+										</div>
+									</div>
+									<a class="ss-home-cyber__cta" href="<?php echo esc_url((string) $item['url']); ?>">
+										<?php echo esc_html((string) $item['cta']); ?>
+										<span class="ss-home-cyber__cta-ico" aria-hidden="true"><?php echo $ico['arrow']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+									</a>
+								</div>
+							</article>
+						<?php endforeach; ?>
+					</div>
+
+					<?php if ($cyber_end !== '') : ?>
+						<div class="ss-home-cyber__timer" aria-live="polite">
+							<span class="ss-home-cyber__timer-ico" aria-hidden="true"><?php echo $ico['clock']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+							<div class="ss-home-cyber__timer-copy">
+								<p class="ss-home-cyber__timer-label">
+									<?php echo esc_html((string) $cyber['timer_label']); ?>
+									<?php if (!empty($cyber['timer_label_em'])) : ?>
+										<em><?php echo esc_html((string) $cyber['timer_label_em']); ?></em>
+									<?php endif; ?>
+								</p>
+								<div class="ss-home-cyber__units">
+									<span class="ss-home-cyber__unit"><strong data-ss-cyber-h>00</strong><small data-ss-cyber-l1><?php echo esc_html((string) ($cyber_units[0] ?? 'Horas')); ?></small></span>
+									<span class="ss-home-cyber__sep" aria-hidden="true">:</span>
+									<span class="ss-home-cyber__unit"><strong data-ss-cyber-m>00</strong><small data-ss-cyber-l2><?php echo esc_html((string) ($cyber_units[1] ?? 'Minutos')); ?></small></span>
+									<span class="ss-home-cyber__sep" aria-hidden="true">:</span>
+									<span class="ss-home-cyber__unit"><strong data-ss-cyber-s>00</strong><small data-ss-cyber-l3><?php echo esc_html((string) ($cyber_units[2] ?? 'Segundos')); ?></small></span>
+								</div>
+							</div>
+						</div>
+					<?php endif; ?>
+
+					<ul class="ss-home-cyber__trust">
+						<?php foreach ((array) $cyber['trust'] as $trust) :
+							$t_icon = $ico[(string) ($trust['icon'] ?? 'check')] ?? $ico['check'];
+							?>
+							<li>
+								<span class="ss-home-cyber__trust-ico" aria-hidden="true"><?php echo $t_icon; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+								<span class="ss-home-cyber__trust-txt"><?php echo esc_html((string) $trust['text']); ?></span>
+							</li>
+						<?php endforeach; ?>
+					</ul>
+				</div>
+			</div>
+		</section>
+	<?php endif; ?>
+
 	<!-- Trust strip -->
 	<section class="ss-home-trust" aria-label="Por qué confiar">
 		<div class="ss-home__shell">
@@ -328,9 +449,6 @@ get_header();
 								$is_vehicle = ($c['category_slug'] ?? '') === 'vehicle';
 								$meta_ico = $is_vehicle ? $ico['car'] : $ico['pin'];
 								$price_txt = '$' . number_format((float) ($c['price_raw'] ?? 0), 0, ',', '.');
-								$sold_txt = number_format_i18n((int) $c['sold']);
-								$max_txt = number_format_i18n((int) $c['max']);
-								$pct = rtrim(rtrim(number_format((float) $c['progress'], 1, '.', ''), '0'), '.');
 								?>
 								<article class="ss-home-contest">
 									<div class="ss-home-contest__media">
@@ -372,16 +490,6 @@ get_header();
 												Participar ahora
 												<span aria-hidden="true"><?php echo $ico['arrow']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
 											</a>
-										</div>
-										<div class="ss-home-contest__progress" aria-label="<?php echo esc_attr(sprintf('Avance %s%%', $pct)); ?>">
-											<p class="ss-home-contest__sold">
-												<span aria-hidden="true"><?php echo $ico['ticket_outline']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
-												<?php echo esc_html($sold_txt . ' / ' . $max_txt); ?> DigiTickets vendidos
-											</p>
-											<div class="ss-home-contest__bar-row">
-												<div class="ss-home-contest__bar"><span style="width: <?php echo esc_attr((string) $c['progress']); ?>%"></span></div>
-												<strong><?php echo esc_html($pct); ?>%</strong>
-											</div>
 										</div>
 									</div>
 								</article>
@@ -761,7 +869,7 @@ get_header();
 
 			<div class="ss-home-faq__visual" aria-hidden="true">
 				<img
-					src="<?php echo esc_url(content_url('mu-plugins/sorteoseguro-home/assets/faq-visual.png')); ?>"
+					src="<?php echo esc_url(content_url('mu-plugins/sorteoseguro-home/assets/faq-visual.jpeg')); ?>"
 					alt=""
 					width="440"
 					height="420"

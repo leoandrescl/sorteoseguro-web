@@ -734,6 +734,13 @@ body.woocommerce-checkout .ss-co #payment {
 	border: 0 !important;
 	width: 100% !important;
 }
+/* Neutraliza el clearfix (::before/::after) del tema: al ser flex-item
+   insertaba el gap de 0.75rem y desplazaba la primera pasarela (Mercado Pago). */
+.ss-co-pay ul.payment_methods::before,
+.ss-co-pay ul.payment_methods::after {
+	display: none !important;
+	content: none !important;
+}
 .ss-co-pay ul.payment_methods > li {
 	display: grid !important;
 	grid-template-columns: auto 1fr !important;
@@ -793,6 +800,28 @@ body.woocommerce-checkout .ss-co #payment {
 	margin: 0 0 0 auto !important;
 	display: inline-block !important;
 	vertical-align: middle !important;
+}
+/* Flow y TUU: el texto se reemplaza por el logo de la pasarela (logo a la izquierda) */
+.ss-co-pay ul.payment_methods > li.payment_method_flowpayment > label,
+.ss-co-pay ul.payment_methods > li.payment_method_wcplugingateway > label {
+	font-size: 0 !important;
+	gap: 0 !important;
+}
+.ss-co-pay ul.payment_methods > li.payment_method_flowpayment > label::before {
+	content: "" !important;
+	display: inline-block !important;
+	flex: 0 0 auto !important;
+	width: 60px !important;
+	height: 30px !important;
+	background: url("https://sorteoseguro.cl/wp-content/mu-plugins/sorteoseguro-chrome/assets/logo-flow.png") no-repeat left center / contain !important;
+}
+.ss-co-pay ul.payment_methods > li.payment_method_wcplugingateway > label::before {
+	content: "" !important;
+	display: inline-block !important;
+	flex: 0 0 auto !important;
+	width: 80px !important;
+	height: 30px !important;
+	background: url("https://sorteoseguro.cl/wp-content/mu-plugins/sorteoseguro-chrome/assets/logo-tuu.png") no-repeat left center / contain !important;
 }
 .ss-co-pay .payment_box {
 	display: none !important;
@@ -1980,4 +2009,90 @@ body.woocommerce-order-pay.ss-checkout-pay #payment .mp-checkout-pro-container,
 	margin: 0 !important;
 	padding: 0 !important;
 	border: 0 !important;
+}
+
+/* ── Región + Comuna (Chile) — combobox con buscador ───────────────────── */
+.ss-co-row__fields--split {
+	grid-template-columns: 1fr 1fr;
+}
+.ss-co-combo {
+	position: relative;
+}
+.ss-co-combo .ss-co-combo__input {
+	cursor: pointer;
+}
+.ss-co-combo .ss-co-combo__input[disabled] {
+	background: var(--ss-co-soft) !important;
+	color: var(--ss-co-muted) !important;
+	cursor: not-allowed;
+	opacity: 1 !important;
+}
+.ss-co-combo__list {
+	position: absolute !important;
+	left: 0;
+	right: 0;
+	top: calc(100% + 4px);
+	z-index: 40 !important;
+	max-height: 260px;
+	overflow-y: auto;
+	margin: 0 !important;
+	padding: 0.3rem !important;
+	list-style: none !important;
+	background: #fff !important;
+	border: 1px solid var(--ss-co-line) !important;
+	border-radius: var(--ss-co-radius-ui) !important;
+	box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14) !important;
+}
+.ss-co-combo__list[hidden] {
+	display: none !important;
+}
+.ss-co-combo__opt {
+	margin: 0 !important;
+	padding: 0.55rem 0.7rem !important;
+	border-radius: var(--ss-co-radius-ui) !important;
+	font-size: 0.93rem !important;
+	font-weight: 600 !important;
+	line-height: 1.25 !important;
+	color: var(--ss-co-ink) !important;
+	cursor: pointer;
+}
+.ss-co-combo__opt:hover,
+.ss-co-combo__opt.is-active {
+	background: var(--ss-co-purple-soft) !important;
+	color: var(--ss-co-purple-dark) !important;
+}
+.ss-co-combo .ss-co-combo__input {
+	padding-right: 2.2rem !important;
+}
+body.woocommerce-checkout .ss-co .ss-co-combo .ss-co-combo__input {
+	padding-right: 2.2rem !important;
+}
+.ss-co-combo__caret {
+	position: absolute;
+	right: 0.85rem;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--ss-co-muted);
+	pointer-events: none;
+	z-index: 3;
+	transition: transform 0.15s ease;
+}
+.ss-co-combo__caret svg {
+	width: 16px !important;
+	height: 16px !important;
+	display: block !important;
+}
+.ss-co-combo.is-open .ss-co-combo__caret {
+	transform: translateY(-50%) rotate(180deg);
+}
+
+@media (max-width: 991px) {
+	.ss-co-row__fields--split {
+		grid-template-columns: 1fr;
+	}
 }

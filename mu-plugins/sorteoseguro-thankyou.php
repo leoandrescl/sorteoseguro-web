@@ -178,6 +178,19 @@ final class SorteoSeguro_Thankyou {
 				$tickets = preg_split('/\s*,\s*/', wp_strip_all_tags($html)) ?: [];
 			}
 		}
+		// DigiTickets de regalo: se muestran integrados con los comprados.
+		$gifts = $item->get_meta('_ss_gift_tickets');
+		if (is_array($gifts)) {
+			if (!is_array($tickets)) {
+				$tickets = [];
+			}
+			foreach ($gifts as $g) {
+				$g = trim((string) $g);
+				if ($g !== '') {
+					$tickets[] = $g;
+				}
+			}
+		}
 		$out = [];
 		foreach ((array) $tickets as $t) {
 			$t = trim((string) $t);

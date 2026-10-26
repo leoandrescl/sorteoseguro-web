@@ -414,3 +414,117 @@ body.ss-comprar-template.woocommerce-checkout .checkout-main-wrapper.ss-co__layo
 		padding-bottom: 40px;
 	}
 }
+
+/* Bono especial — solo /bonificaciones/ (body.ss-bonificaciones-template) */
+body.ss-bonificaciones-template .ss-bono-banner {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	background: linear-gradient(90deg, #ffffff 0%, #f3edff 55%, #e7dbfc 100%);
+	border: 1px solid #e2d5fb;
+	border-radius: 16px;
+	padding: 10px 14px 10px 4px;
+	margin: 0 0 12px;
+	overflow: hidden;
+	box-sizing: border-box;
+}
+body.ss-bonificaciones-template .ss-bono-gift {
+	width: 96px;
+	flex: 0 0 96px;
+	height: auto;
+	object-fit: contain;
+}
+body.ss-bonificaciones-template .ss-bono-center {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 3px;
+}
+body.ss-bonificaciones-template .ss-bono-pill {
+	background: #6b21c9;
+	color: #fff;
+	font-size: 12px;
+	font-weight: 700;
+	line-height: 1;
+	padding: 7px 13px;
+	border-radius: 999px;
+	white-space: nowrap;
+}
+body.ss-bonificaciones-template .ss-bono-sub {
+	font-size: 13px;
+	line-height: 1.2;
+	color: #3d3d3d;
+}
+body.ss-bonificaciones-template .ss-bono-title {
+	font-size: 24px;
+	line-height: 1.05;
+	font-weight: 800;
+	color: #111;
+	margin: 0;
+}
+body.ss-bonificaciones-template .ss-bono-title strong {
+	color: #6b21c9;
+	font-weight: 800;
+	background-image: linear-gradient(#ffd21f, #ffd21f);
+	background-size: 100% 5px;
+	background-repeat: no-repeat;
+	background-position: 0 100%;
+	padding-bottom: 3px;
+}
+body.ss-bonificaciones-template .ss-bono-ticket {
+	position: relative;
+	flex: 0 0 158px;
+	width: 158px;
+	min-width: 0;
+}
+body.ss-bonificaciones-template .ss-bono-ticket-bg {
+	width: 100%;
+	height: auto;
+	display: block;
+}
+body.ss-bonificaciones-template .ss-bono-amount {
+	position: absolute;
+	left: 10%;
+	right: 6%;
+	top: 38%;
+	bottom: 30%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #fff;
+	font-weight: 800;
+	font-size: 26px;
+	letter-spacing: -0.5px;
+	text-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+	white-space: nowrap;
+	transform: rotate(-3deg);
+}
+@media (max-width: 600px) {
+	body.ss-bonificaciones-template .ss-bono-banner {
+		gap: 10px;
+		padding: 10px 10px 10px 12px;
+		border-radius: 14px;
+	}
+	body.ss-bonificaciones-template .ss-bono-gift {
+		display: none;
+	}
+	body.ss-bonificaciones-template .ss-bono-pill {
+		font-size: 11px;
+		padding: 6px 11px;
+	}
+	body.ss-bonificaciones-template .ss-bono-sub {
+		font-size: 12px;
+	}
+	body.ss-bonificaciones-template .ss-bono-title {
+		font-size: 20px;
+	}
+	body.ss-bonificaciones-template .ss-bono-ticket {
+		flex: 0 0 120px;
+		width: 120px;
+	}
+	body.ss-bonificaciones-template .ss-bono-amount {
+		font-size: 20px;
+	}
+}

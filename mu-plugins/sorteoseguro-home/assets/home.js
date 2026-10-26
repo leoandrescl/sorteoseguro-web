@@ -329,6 +329,47 @@
 			setInterval(tickPromo, 1000);
 		}
 
+		/* Cyber countdown (home) */
+		var cyber = root.querySelector('[data-ss-cyber-end]');
+		function tickCyber() {
+			if (!cyber) return;
+			var end = parseEnd(cyber.getAttribute('data-ss-cyber-end'));
+			var ms = end ? Math.max(0, end - Date.now()) : 0;
+			var totalSec = Math.floor(ms / 1000);
+			var v1, v2, v3, l1, l2, l3;
+			if (totalSec >= 86400) {
+				v1 = Math.floor(totalSec / 86400);
+				v2 = Math.floor((totalSec % 86400) / 3600);
+				v3 = Math.floor((totalSec % 3600) / 60);
+				l1 = 'Días';
+				l2 = 'Horas';
+				l3 = 'Minutos';
+			} else {
+				v1 = Math.floor(totalSec / 3600);
+				v2 = Math.floor((totalSec % 3600) / 60);
+				v3 = totalSec % 60;
+				l1 = 'Horas';
+				l2 = 'Minutos';
+				l3 = 'Segundos';
+			}
+			var e1 = cyber.querySelector('[data-ss-cyber-h]');
+			var e2 = cyber.querySelector('[data-ss-cyber-m]');
+			var e3 = cyber.querySelector('[data-ss-cyber-s]');
+			var t1 = cyber.querySelector('[data-ss-cyber-l1]');
+			var t2 = cyber.querySelector('[data-ss-cyber-l2]');
+			var t3 = cyber.querySelector('[data-ss-cyber-l3]');
+			if (e1) e1.textContent = pad(v1);
+			if (e2) e2.textContent = pad(v2);
+			if (e3) e3.textContent = pad(v3);
+			if (t1) t1.textContent = l1;
+			if (t2) t2.textContent = l2;
+			if (t3) t3.textContent = l3;
+		}
+		if (cyber) {
+			tickCyber();
+			setInterval(tickCyber, 1000);
+		}
+
 		/* Copy coupon */
 		Array.prototype.slice.call(root.querySelectorAll('[data-ss-copy]')).forEach(function (btn) {
 			btn.addEventListener('click', function () {

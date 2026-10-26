@@ -3,7 +3,21 @@
  * Plugin Name: Sorteo Seguro – Ingresos reales
  * Description: Panel wp-admin con lo que pagaron los clientes (DigiPack aplicado). Solo lectura; no toca pedidos ni pagos.
  * Author: Sorteo Seguro
- * Version: 1.2.0
+ * Version: 1.2.7
+ *
+ * 1.2.1: nueva tabla "Uso efectivo de bonos y promos" (pedidos pagados distintos por
+ * promo, contando combinados). Ranking y cálculos existentes intactos.
+ * 1.2.2: el Ranking DigiPacks solo clasifica packs (los fees de bono puro, sin
+ * " — producto", se ignoran y esas líneas van a Individual). Los bonos/promos
+ * se miden solo en "Uso efectivo". Genérico, sin nombres hardcodeados.
+ * 1.2.3: el ranking solo acepta fees cuya base tenga sintaxis de pack (NxN o nombre
+ * del ranking). Cubre fees legacy "Bono X — producto" de versiones anteriores.
+ * 1.2.4: matcher del ranking 100% byte-safe (el /u fallaba con tildes heredadas).
+ * 1.2.5: separador NxN por pares de dígitos (cubre ×, ✕, ✖, x, X).
+ * 1.2.6: el ranking suma filas de bonos (no-pack) con lo realmente pagado
+ * (lista − bono). Genérico, sin nombres hardcodeados.
+ * 1.2.7: pagado real = lista menos TODOS los descuentos [PROMO] del pedido
+ * (bono + packs combinados), igual que las filas de packs. Antes restaba el bono.
  *
  * mu-plugin: borrar este archivo y la carpeta sorteoseguro-ingresos para rollback.
  */
@@ -13,7 +27,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Ingresos {
 
-	const VERSION   = '1.2.0';
+	const VERSION   = '1.2.7';
 	const PAGE      = 'ss-ingresos';
 	const DIR       = __DIR__ . '/sorteoseguro-ingresos';
 	const CACHE_TTL = 120;
@@ -146,6 +160,8 @@ final class SorteoSeguro_Ingresos {
 		self::render_weekdays($data);
 		self::render_payment($data);
 		self::render_packs($data);
+		self::render_promos($data);
+		self::render_gifts($range);
 		self::render_tables($data);
 		self::render_customers($data);
 		echo '</div>';
@@ -493,7 +509,7 @@ final class SorteoSeguro_Ingresos {
 		echo '<section class="ss-ing__packs">';
 		echo '<article class="ss-ing__table-card ss-ing__chart--wide">';
 		echo '<h2>Ranking DigiPacks</h2>';
-		echo '<p class="ss-ing__section-lead">Un pedido con 2 packs distintos cuenta en ambas filas. Los totales de pedidos del resumen no se duplican.</p>';
+		echo '<p class="ss-ing__section-lead">Un pedido con 2 packs distintos cuenta en ambas filas. Los totales de pedidos del resumen no se duplican. Las filas de bonos muestran lo realmente pagado con ese bono (lista − descuento); un pedido con bono + pack cuenta en ambas.</p>';
 
 		if ($highlights) {
 			echo '<p class="ss-ing__peak">';
@@ -515,6 +531,93 @@ final class SorteoSeguro_Ingresos {
 			echo '<td>' . esc_html(self::format_int((int) $row['qty'])) . '</td>';
 			echo '<td><strong>' . esc_html(self::format_money((float) $row['paid'])) . '</strong></td>';
 			echo '<td>' . esc_html(number_format((float) $row['order_pct'], 1, ',', '.')) . '%</td>';
+			echo '</tr>';
+		}
+		// 1.2.6: filas de bonos con lo realmente pagado (lista − bono).
+		$bonus_rows = is_array($data['bonus_rows'] ?? null) ? $data['bonus_rows'] : array();
+		foreach ($bonus_rows as $row) {
+			echo '<tr>';
+			echo '<td>' . esc_html((string) $row['name']) . '</td>';
+			echo '<td>' . esc_html(self::format_int((int) $row['orders'])) . '</td>';
+			echo '<td>' . esc_html(self::format_int((int) $row['qty'])) . '</td>';
+			echo '<td><strong>' . esc_html(self::format_money((float) $row['paid'])) . '</strong></td>';
+			echo '<td>' . esc_html(number_format((float) $row['order_pct'], 1, ',', '.')) . '%</td>';
+			echo '</tr>';
+		}
+		echo '</tbody></table></article></section>';
+	}
+
+	/**
+	 * 1.2.1: uso efectivo real de cada bono/promo (SOLO LECTURA, tabla nueva).
+	 * Cuenta pedidos pagados DISTINTOS por promo con descuento [PROMO] aplicado en el
+	 * período. Un pedido con bono + pack cuenta en AMBAS filas (a diferencia del ranking,
+	 * que atribuye cada pedido a una sola fila). No altera ningún cálculo existente.
+	 *
+	 * @param array<string,mixed> $data
+	 */
+	private static function render_promos(array $data): void {
+		$promos = is_array($data['promos'] ?? null) ? $data['promos'] : array();
+
+		echo '<section class="ss-ing__packs">';
+		echo '<article class="ss-ing__table-card ss-ing__chart--wide">';
+		echo '<h2>Uso efectivo de bonos y promos</h2>';
+		echo '<p class="ss-ing__section-lead">Pedidos pagados del período con cada descuento aplicado, solo o combinado. Un pedido con bono + pack cuenta en ambas filas.</p>';
+
+		if (!$promos) {
+			echo '<p class="ss-ing__section-lead">Sin bonos ni promos con descuento aplicado en este período.</p>';
+			echo '</article></section>';
+			return;
+		}
+
+		echo '<table class="ss-ing__table">';
+		echo '<thead><tr><th>Promo / bono</th><th>Pedidos (uso efectivo)</th><th>Descuento entregado</th><th>% pedidos</th></tr></thead><tbody>';
+		foreach ($promos as $row) {
+			echo '<tr>';
+			echo '<td>' . esc_html((string) $row['name']) . '</td>';
+			echo '<td>' . esc_html(self::format_int((int) $row['orders'])) . '</td>';
+			echo '<td><strong>' . esc_html(self::format_money((float) $row['discount'])) . '</strong></td>';
+			echo '<td>' . esc_html(number_format((float) $row['order_pct'], 1, ',', '.')) . '%</td>';
+			echo '</tr>';
+		}
+		echo '</tbody></table></article></section>';
+	}
+
+	/**
+	 * DigiTickets de regalo (promos "compra X → regala Y"). Solo lectura.
+	 *
+	 * @param array{preset:string,start:DateTime,end:DateTime,prev_start:DateTime,prev_end:DateTime,dow:int,compare_note?:string} $range
+	 */
+	private static function render_gifts(array $range): void {
+		echo '<section class="ss-ing__packs">';
+		echo '<article class="ss-ing__table-card ss-ing__chart--wide">';
+		echo '<h2>DigiTickets de regalo</h2>';
+		echo '<p class="ss-ing__section-lead">DigiTickets entregados por promos de regalo (compra X → regala Y). Solo lectura. No descuentan el universo de venta (solo lo pagado lo hace).</p>';
+
+		if (!class_exists('SorteoSeguro_Gift_Tickets') || !isset($range['start'], $range['end'])) {
+			echo '<p class="ss-ing__section-lead">Módulo de regalos no disponible.</p>';
+			echo '</article></section>';
+			return;
+		}
+
+		$rows = SorteoSeguro_Gift_Tickets::gift_rows_for_range($range['start'], $range['end']);
+		if (!$rows) {
+			echo '<p class="ss-ing__section-lead">Sin DigiTickets de regalo confirmados en este período.</p>';
+			echo '</article></section>';
+			return;
+		}
+
+		$total = 0;
+		foreach ($rows as $row) {
+			$total += (int) $row['gifts'];
+		}
+		echo '<p class="ss-ing__section-lead">Total de regalos confirmados: <strong>' . esc_html(self::format_int($total)) . '</strong></p>';
+
+		echo '<table class="ss-ing__table">';
+		echo '<thead><tr><th>Sorteo</th><th>DigiTickets de regalo</th></tr></thead><tbody>';
+		foreach ($rows as $row) {
+			echo '<tr>';
+			echo '<td>' . esc_html((string) $row['title']) . '</td>';
+			echo '<td><strong>' . esc_html(self::format_int((int) $row['gifts'])) . '</strong></td>';
 			echo '</tr>';
 		}
 		echo '</tbody></table></article></section>';
@@ -803,6 +906,8 @@ final class SorteoSeguro_Ingresos {
 			'gateways'         => $gateways,
 			'packs'            => $breakdown['packs'],
 			'pack_highlights'  => $breakdown['pack_highlights'],
+			'promos'           => $breakdown['promos'],
+			'bonus_rows'       => $breakdown['bonus_rows'],
 			'products'         => $breakdown['products'],
 			'categories'       => $breakdown['categories'],
 			'customers'        => $customers,
@@ -1301,6 +1406,8 @@ final class SorteoSeguro_Ingresos {
 			'categories'      => array(),
 			'packs'           => array(),
 			'pack_highlights' => array(),
+			'promos'          => array(),
+			'bonus_rows'      => array(),
 		);
 
 		if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $lookup)) !== $lookup) {
@@ -1394,6 +1501,37 @@ final class SorteoSeguro_Ingresos {
 			}
 			if ($sum < 0) {
 				$promo_by_order[ $oid ] = $sum;
+			}
+		}
+
+		// 1.2.1: uso efectivo por promo (pedidos pagados distintos, contando combinados).
+		// Misma fuente que el resto del reporte (fees [PROMO] negativos de pedidos pagados
+		// del período). No altera $promo_by_order ni ningún cálculo existente.
+		$promo_fee_orders = $promo_fees_by_order;
+		if (is_array($allowed_ids)) {
+			$promo_fee_orders = array_intersect_key($promo_fees_by_order, $allowed_ids);
+		}
+		$promo_usage = array();
+		foreach ($promo_fee_orders as $oid => $fees) {
+			$seen_in_order = array();
+			foreach ($fees as $fee) {
+				$base = preg_replace('/^\[PROMO\]\s*/i', '', (string) $fee['name']);
+				if (!is_string($base)) {
+					$base = '';
+				}
+				$parts = explode(' — ', $base);
+				$base  = trim($parts[0]);
+				if ($base === '') {
+					$base = 'Promo sin nombre';
+				}
+				if (!isset($promo_usage[ $base ])) {
+					$promo_usage[ $base ] = array('orders' => array(), 'discount' => 0.0);
+				}
+				if (!isset($seen_in_order[ $base ])) {
+					$seen_in_order[ $base ] = true;
+					$promo_usage[ $base ]['orders'][ $oid ] = true;
+				}
+				$promo_usage[ $base ]['discount'] += abs((float) $fee['amount']);
 			}
 		}
 
@@ -1534,6 +1672,85 @@ final class SorteoSeguro_Ingresos {
 			$disc_total += $row['discount'];
 		}
 
+		// 1.2.1: filas de uso efectivo por promo, ordenadas por pedidos desc.
+		$promos = array();
+		foreach ($promo_usage as $name => $prow) {
+			$order_count = count($prow['orders']);
+			$promos[] = array(
+				'name'      => (string) $name,
+				'orders'    => $order_count,
+				'discount'  => (float) $prow['discount'],
+				'order_pct' => $total_paid_orders > 0 ? round(100 * $order_count / $total_paid_orders, 1) : 0.0,
+			);
+		}
+		usort($promos, static function ($a, $b) {
+			if ((int) $b['orders'] !== (int) $a['orders']) {
+				return (int) $b['orders'] <=> (int) $a['orders'];
+			}
+			return (float) $b['discount'] <=> (float) $a['discount'];
+		});
+
+		// 1.2.6/1.2.7: filas de bonos para el ranking: por cada promo NO-pack, todos
+		// los pedidos pagados que la usaron (sola o combinada), con tickets e
+		// ingresado REAL. 1.2.7: lo realmente pagado = lista menos TODOS los
+		// descuentos [PROMO] del pedido (bono + packs combinados, igual que las
+		// filas de packs). Misma fuente y filtro de período que el resto.
+		$bonus_usage = array();
+		foreach ($promo_fee_orders as $oid => $fees) {
+			if (!isset($by_order[ $oid ])) {
+				continue;
+			}
+			$bono_bases = array();
+			foreach ($fees as $fee) {
+				$fee_name = is_array($fee) ? (string) ($fee['name'] ?? '') : (string) $fee;
+				if (self::fee_base_is_pack($fee_name)) {
+					continue;
+				}
+				$base = self::promo_fee_base_name($fee_name);
+				if ($base === '') {
+					continue;
+				}
+				$bono_bases[ $base ] = true;
+			}
+			if (!$bono_bases) {
+				continue;
+			}
+			$o_qty  = 0;
+			$o_list = 0.0;
+			foreach ($by_order[ $oid ] as $line) {
+				$o_qty  += (int) $line->product_qty;
+				$o_list += (float) $line->product_net_revenue;
+			}
+			// $promo_by_order suma todos los fees [PROMO] negativos del pedido.
+			$o_paid = max(0.0, $o_list + (float) ($promo_by_order[ $oid ] ?? 0.0));
+			foreach ($bono_bases as $base => $_t) {
+				if (!isset($bonus_usage[ $base ])) {
+					$bonus_usage[ $base ] = array('orders' => array(), 'qty' => 0, 'list' => 0.0, 'paid' => 0.0);
+				}
+				$bonus_usage[ $base ]['orders'][ $oid ] = true;
+				$bonus_usage[ $base ]['qty']            += $o_qty;
+				$bonus_usage[ $base ]['list']           += $o_list;
+				$bonus_usage[ $base ]['paid']           += $o_paid;
+			}
+		}
+		$bonus_rows = array();
+		foreach ($bonus_usage as $name => $brow) {
+			$order_count = count($brow['orders']);
+			$bonus_rows[] = array(
+				'name'      => (string) $name,
+				'orders'    => $order_count,
+				'qty'       => (int) $brow['qty'],
+				'paid'      => (float) $brow['paid'],
+				'order_pct' => $total_paid_orders > 0 ? round(100 * $order_count / $total_paid_orders, 1) : 0.0,
+			);
+		}
+		usort($bonus_rows, static function ($a, $b) {
+			if ((int) $b['orders'] !== (int) $a['orders']) {
+				return (int) $b['orders'] <=> (int) $a['orders'];
+			}
+			return (float) $b['paid'] <=> (float) $a['paid'];
+		});
+
 		return array(
 			'list'            => $list_total,
 			'paid'            => $paid_total,
@@ -1545,7 +1762,73 @@ final class SorteoSeguro_Ingresos {
 				'top_orders'  => $top_orders,
 				'top_revenue' => $top_revenue,
 			),
+			'promos'          => $promos,
+			'bonus_rows'      => $bonus_rows,
 		);
+	}
+
+	/**
+	 * 1.2.6: nombre base de un fee [PROMO] (sin prefijo y sin " — producto").
+	 * Byte-safe, sin literales no-ASCII.
+	 */
+	private static function promo_fee_base_name(string $fee_name): string {
+		$base = preg_replace('/^\[PROMO\]\s*/i', '', $fee_name);
+		if (!is_string($base)) {
+			return '';
+		}
+		$parts = explode('|', str_replace(array("\xE2\x80\x94", "\xE2\x80\x93"), '|', $base));
+		return trim($parts[0]);
+	}
+
+	/**
+	 * 1.2.3/1.2.5: ¿el fee corresponde a un pack del ranking? Todo lo demás (bonos
+	 * fixed/%, fees legacy "Bono X — producto", promos sin sintaxis de pack)
+	 * devuelve false y no clasifica al ranking.
+	 * 1.2.4: implementación byte-safe (sin /u ni literales no-ASCII).
+	 * 1.2.5: el separador NxN se detecta por pares de dígitos (cubre cualquier
+	 * variante de ×: x, X, ×, ✕, ✖). Un par cuenta si el texto entre ambos es
+	 * corto, sin letras y sin puntos/comas (así "Bono $60.000" queda fuera).
+	 */
+	private static function fee_base_is_pack(string $fee_name): bool {
+		$base = preg_replace('/^\[PROMO\]\s*/i', '', $fee_name);
+		if (!is_string($base)) {
+			return false;
+		}
+		// Guiones em/en (bytes UTF-8) normalizados a "|". Sin literales no-ASCII.
+		$base  = str_replace(array("\xE2\x80\x94", "\xE2\x80\x93"), '|', $base);
+		$parts = explode('|', $base);
+		$base  = trim($parts[0]);
+		if ($base === '') {
+			return false;
+		}
+		if (preg_match_all('/\d+/', $base, $m, PREG_OFFSET_CAPTURE)) {
+			$groups = $m[0];
+			$count  = count($groups);
+			for ($i = 0; $i + 1 < $count; $i++) {
+				$end_first  = (int) $groups[ $i ][1] + strlen((string) $groups[ $i ][0]);
+				$sep        = substr($base, $end_first, (int) $groups[ $i + 1 ][1] - $end_first);
+				if (!is_string($sep) || strlen($sep) > 6) {
+					continue;
+				}
+				// Letras distintas de x/X (ej. " por ", " Depto ") invalidan el par;
+				// la "x" de "3x2" sí vale. Puntos/comas ("60.000") también invalidan.
+				$no_x = str_replace(array('x', 'X'), '', $sep);
+				if (preg_match('/[a-zA-Z]/', $no_x)) {
+					continue;
+				}
+				if (strpos($sep, '.') !== false || strpos($sep, ',') !== false) {
+					continue;
+				}
+				return true;
+			}
+		}
+		$lower = strtolower($base);
+		foreach (self::PACK_ORDER as $pack) {
+			if ($pack !== 'Individual' && strpos($lower, strtolower($pack)) !== false) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -1553,23 +1836,38 @@ final class SorteoSeguro_Ingresos {
 	 */
 	private static function resolve_line_pack_slug(int $order_id, string $product_title, array $order_promo_fees): string {
 		unset($order_id);
-		if (!$order_promo_fees) {
+		// 1.2.2/1.2.3: solo los fees de pack clasifican al ranking. Un fee es de pack
+		// si su base (antes de " — producto") tiene sintaxis de pack (NxN o nombre del
+		// ranking). Los bonos (fee único o legacy "Bono X — producto") se ignoran: esas
+		// líneas van a Individual y los bonos se miden en "Uso efectivo". Genérico.
+		$pack_fees = array_values(
+			array_filter(
+				$order_promo_fees,
+				static function ($fee) {
+					$name = is_array($fee) ? (string) ($fee['name'] ?? '') : (string) $fee;
+					return self::fee_base_is_pack($name);
+				}
+			)
+		);
+		if (!$pack_fees) {
 			return 'Individual';
 		}
 
 		$needle = strtolower(trim($product_title));
-		foreach ($order_promo_fees as $fee) {
-			$name = (string) $fee['name'];
+		foreach ($pack_fees as $fee) {
+			$name = is_array($fee) ? (string) ($fee['name'] ?? '') : (string) $fee;
 			if ($needle !== '' && stripos($name, $needle) !== false) {
 				return self::normalize_pack_slug($name);
 			}
 		}
 
-		if (count($order_promo_fees) === 1) {
-			return self::normalize_pack_slug((string) $order_promo_fees[0]['name']);
+		if (count($pack_fees) === 1) {
+			$name = is_array($pack_fees[0]) ? (string) ($pack_fees[0]['name'] ?? '') : (string) $pack_fees[0];
+			return self::normalize_pack_slug($name);
 		}
 
-		return self::normalize_pack_slug((string) $order_promo_fees[0]['name']);
+		$name = is_array($pack_fees[0]) ? (string) ($pack_fees[0]['name'] ?? '') : (string) $pack_fees[0];
+		return self::normalize_pack_slug($name);
 	}
 
 	private static function normalize_pack_slug(string $fee_name): string {

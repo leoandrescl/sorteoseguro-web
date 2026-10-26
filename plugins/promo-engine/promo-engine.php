@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Promo Engine (Stable 1.3.0) — Non-Stacking Logic
  * Description: Sistema de promociones con lógica de inventario virtual (no acumulable por ítem) y prioridad por volumen de compra (BxPy).
- * Version: 1.3.0-stable-p14
+ * Version: 1.3.0-stable-p19
  * p10: bonos fixed/% acumulables aplican sobre líneas DigiPack (ya no las bloquea el inventario BxPy).
  * p11: bonos fixed/% = fee único de carrito sin nombre de producto; min_total = total a pagar tras packs.
  * p12: audiencia Brevo (desde/hasta + condición) y filtro “compró DigiTickets de estos sorteos”.
@@ -10,6 +10,16 @@
  * p13: página bono precargado (/oferta/): DigiPacks visibles + bonos fixed/% solo con sesión de landing.
  *      Ficha/comprar y filtros previos intactos.
  * p14: 1 uso por cliente + contador de redenciones solo al pasar a Completado/Procesando (pago efectivo).
+ * p15: "Redenciones realizadas" muestra uso efectivo real (pedidos pagados con la campaña).
+ *      Solo display; límites, consumo y meta histórica intactos.
+ * p16: el uso efectivo se cuenta por fee [PROMO] aplicado en pedidos pagados (mismo
+ *      criterio que el CIV), no por meta: incluye invitados y pedidos combinados.
+ * p17: get_preload_bono_message_data() para el banner de /oferta/ (solo lectura).
+ * p18: tipo "bulk" (Cantidad de DigiTickets x Valor total $) + superficie /cyber/:
+ *      metas _promo_bulk_qty/_promo_bulk_price/_promo_show_on_cyber/_promo_cyber_lotteries.
+ *      Todo aditivo: tipos, ficha y /oferta/ previos intactos.
+ * p19: banner /cyber/ (get_cyber_banner_data): copy editable _promo_cyber_title/_promo_cyber_bullet_*.
+ *      Precio, cantidad, % y contador (fecha fin) se derivan del pack bulk. Aditivo.
  */
 
 if (!defined('ABSPATH')) exit;
@@ -43,8 +53,10 @@ if (!class_exists('Promo_Engine_Stable')) :
             'bxpy_buy'          => '_promo_bxpy_buy',
             'bxpy_pay'          => '_promo_bxpy_pay',
             'show_on_product'   => '_promo_show_on_product',
+            'show_on_product_banner' => '_promo_show_on_product_banner',
             'target_lotteries'  => '_promo_target_lotteries',
             'product_badge'     => '_promo_product_badge',
+            'product_color'     => '_promo_product_color',
             'product_sort'      => '_promo_product_sort',
             // Página /oferta/ (bono precargado). Independiente de ficha.
             'show_on_preload'   => '_promo_show_on_preload',
@@ -55,6 +67,17 @@ if (!class_exists('Promo_Engine_Stable')) :
             'audience_to'        => '_promo_audience_to',
             // Historial pagado de DigiTickets por sorteo. Vacío = no filtra.
             'bought_lotteries'   => '_promo_bought_lotteries',
+            // Tipo bulk: "N DigiTickets x $P" (valor total fijo).
+            'bulk_qty'           => '_promo_bulk_qty',
+            'bulk_price'         => '_promo_bulk_price',
+            // Página /cyber/ (Cyber Day). Independiente de ficha y /oferta/.
+            'show_on_cyber'      => '_promo_show_on_cyber',
+            'cyber_lotteries'    => '_promo_cyber_lotteries',
+            // Copy del banner /cyber/ (el resto es dinámico).
+            'cyber_title'        => '_promo_cyber_title',
+            'cyber_bullet_1'     => '_promo_cyber_bullet_1',
+            'cyber_bullet_2'     => '_promo_cyber_bullet_2',
+            'cyber_bullet_3'     => '_promo_cyber_bullet_3',
         ];
 
         /** Packs activos en ficha: se les asignan todos los sorteos actuales una vez. */
@@ -67,7 +90,11 @@ if (!class_exists('Promo_Engine_Stable')) :
         const SESSION_PRELOAD_PRODUCT = 'ss_preload_product_id';
         const PAID_STATUSES   = ['completed', 'processing'];
 
+        /** Instancia única (para consultas de visibilidad desde métodos estáticos). */
+        private static $instance = null;
+
         public function __construct() {
+            self::$instance = $this;
             add_action('init',                            [$this, 'register_cpt']);
             add_action('init',                            [$this, 'maybe_seed_pack_lotteries'], 30);
             add_action('init',                            [$this, 'capture_incoming_source']); // Captura fuente de URL
@@ -233,6 +260,8 @@ if (!class_exists('Promo_Engine_Stable')) :
                 wp_enqueue_script('wc-enhanced-select');
                 wp_enqueue_style('wc-enhanced-select');
                 wp_enqueue_script('jquery');
+                wp_enqueue_style('wp-color-picker');
+                wp_enqueue_script('wp-color-picker');
             }
         }
 
@@ -264,11 +293,15 @@ if (!class_exists('Promo_Engine_Stable')) :
             $reg_before_date   = $get('reg_before_date', ''); // Agregado
             $email_subject     = $get('email_subject', '');
             $email_body        = $get('email_body', '');
-            $redemptions       = (int) get_post_meta($post->ID, self::META['redemptions'], true);
+            $redemptions_legacy  = (int) get_post_meta($post->ID, self::META['redemptions'], true);
+            // p15: uso efectivo real = pedidos pagados con esta campaña (el meta histórico puede estar inflado).
+            $redemptions       = self::count_effective_redemptions($post->ID);
             $target_categories = $get('target_categories', []);
             $target_products   = $get('target_products', []);
             $show_on_product   = $get('show_on_product', 'no');
+            $show_on_product_banner = $get('show_on_product_banner', 'no');
             $product_badge     = $get('product_badge', '');
+            $product_color     = $get('product_color', '');
             $product_sort      = $get('product_sort', '10');
             $show_on_preload   = $get('show_on_preload', 'no');
             $audience_condition = $get('audience_condition', '');
@@ -279,6 +312,13 @@ if (!class_exists('Promo_Engine_Stable')) :
                 $bought_lotteries = [];
             }
             $bought_lotteries = array_map('absint', $bought_lotteries);
+            $show_on_cyber      = $get('show_on_cyber', 'no');
+            $bulk_qty           = (int) $get('bulk_qty', '');
+            $bulk_price         = $get('bulk_price', '');
+            $cyber_title        = $get('cyber_title', '');
+            $cyber_bullet_1     = $get('cyber_bullet_1', '');
+            $cyber_bullet_2     = $get('cyber_bullet_2', '');
+            $cyber_bullet_3     = $get('cyber_bullet_3', '');
             $audience_conds = self::audience_conditions();
             ?>
                 <div class="promo-field">
@@ -301,6 +341,8 @@ if (!class_exists('Promo_Engine_Stable')) :
                 .promo-box-special { background: #f0f6fb; padding: 12px; border-radius: 4px; border: 1px solid #c3d4e3; grid-column: 1 / -1; margin-top: 10px; }
                 .promo-box-product { background: #f7faf4; padding: 12px; border-radius: 4px; border: 1px solid #c5d9b8; grid-column: 1 / -1; margin-top: 10px; }
                 .promo-box-preload { background: #eef6ff; padding: 12px; border-radius: 4px; border: 1px solid #b7d0ef; grid-column: 1 / -1; margin-top: 10px; }
+                .promo-box-cyber { background: #e8f4fd; padding: 12px; border-radius: 4px; border: 1px solid #a9d5f2; grid-column: 1 / -1; margin-top: 10px; }
+                .promo-box-bulk { background: #e8f7f0; padding: 12px; border-radius: 4px; border: 1px solid #b6e0cd; grid-column: 1 / -1; margin-top: 10px; }
                 .promo-box-audience { background: #f3ecff; padding: 12px; border-radius: 4px; border: 1px solid #d4c4f0; grid-column: 1 / -1; margin-top: 10px; }
                 .promo-box-bought { background: #fff8ef; padding: 12px; border-radius: 4px; border: 1px solid #e8d5b5; grid-column: 1 / -1; margin-top: 10px; }
                 .promo-audience-opt { display:block; border:1px solid #d4c4f0; border-radius:6px; padding:10px 12px; margin:0 0 8px; background:#fff; cursor:pointer; }
@@ -317,6 +359,11 @@ if (!class_exists('Promo_Engine_Stable')) :
                         Mostrar en ficha de producto (packs)
                     </label>
                     <p class="promo-hint" style="margin-top:0;">Marca la campaña como pack y elige en qué sorteos se ve. Si no marcas ningún sorteo, no aparece en ninguna ficha.</p>
+                    <label style="font-weight:600; display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                        <input type="checkbox" name="promo_show_on_product_banner" value="yes" id="promo_show_on_product_banner" <?php checked($show_on_product_banner, 'yes'); ?> />
+                        Mostrar como banner en la ficha normal (arriba del grid)
+                    </label>
+                    <p class="promo-hint" style="margin-top:0;">Para packs "Cantidad x Valor" o "Lleva X / Paga Y". Se ve como banner sobre el grid en /producto/ (el pack no se repite abajo). No aparece en /comprar/, /bonificaciones/ ni /cyber/.</p>
                     <?php
                     $lotteries = self::get_lottery_products_for_admin();
                     $raw_lotteries = get_post_meta($post->ID, self::META['target_lotteries'], true);
@@ -363,6 +410,11 @@ if (!class_exists('Promo_Engine_Stable')) :
                             $box.find('.promo-lottery-cb').prop('checked', false);
                         });
                         $('#promo_show_on_product').on('change', syncLotteryLock);
+                        $('#promo_show_on_product_banner').on('change', function(){
+                            if ($(this).is(':checked')) {
+                                $('#promo_show_on_product').prop('checked', true).trigger('change');
+                            }
+                        });
                         syncLotteryLock();
                     });
                     </script>
@@ -371,12 +423,24 @@ if (!class_exists('Promo_Engine_Stable')) :
                             <label>Badge en ficha (opcional)</label>
                             <input type="text" name="promo_product_badge" value="<?php echo esc_attr($product_badge); ?>" placeholder="Ej: MÁS POPULAR" style="width:100%;" />
                         </div>
+                        <div style="flex:0 0 190px;">
+                            <label style="font-weight:600; display:block; margin-bottom:6px;">Color del pack (opcional)</label>
+                            <input type="text" class="promo-color-field" name="promo_product_color" value="<?php echo esc_attr($product_color); ?>" placeholder="#RRGGBB" style="width:100%;" />
+                            <p class="promo-hint">Vacío = color por defecto.</p>
+                        </div>
                         <div class="promo-field" style="flex:0 0 120px;">
                             <label>Orden en ficha</label>
                             <input type="number" name="promo_product_sort" value="<?php echo esc_attr($product_sort); ?>" step="1" style="width:100%;" />
                             <p class="promo-hint">Menor = primero.</p>
                         </div>
                     </div>
+                    <script>
+                    jQuery(function($){
+                        if ($.fn && $.fn.wpColorPicker) {
+                            $('.promo-color-field').wpColorPicker();
+                        }
+                    });
+                    </script>
                 </div>
 
                 <div class="promo-box-preload">
@@ -442,6 +506,80 @@ if (!class_exists('Promo_Engine_Stable')) :
                     </script>
                 </div>
 
+                <div class="promo-box-cyber">
+                    <label style="color:#0b6ea8; display:block; margin-bottom:8px;">PÁGINA CYBER (/cyber/)</label>
+                    <label style="font-weight:600; display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                        <input type="checkbox" name="promo_show_on_cyber" value="yes" id="promo_show_on_cyber" <?php checked($show_on_cyber, 'yes'); ?> />
+                        Incluir en páginas /cyber/ (Cyber Day)
+                    </label>
+                    <p class="promo-hint" style="margin-top:0;">
+                        Marca los sorteos donde debe verse esta promo. El tipo "Cantidad x Valor" aparece como pack en esa página y aplica su descuento ahí.<br>
+                        Los filtros de segmentación, audiencia y fechas de esta campaña siguen rigiendo igual.
+                    </p>
+                    <?php
+                    $raw_cyber = get_post_meta($post->ID, self::META['cyber_lotteries'], true);
+                    $cyber_configured = is_array($raw_cyber);
+                    $selected_cyber_ids = $cyber_configured ? array_map('absint', (array) $raw_cyber) : [];
+                    if (empty($lotteries)) {
+                        $lotteries = self::get_lottery_products_for_admin();
+                    }
+                    ?>
+                    <input type="hidden" name="promo_cyber_lotteries_present" value="1" />
+                    <div class="promo-cyber-lotteries" style="margin:10px 0 4px;">
+                        <label style="margin-bottom:6px;">Sorteos de la página /cyber/</label>
+                        <p class="promo-hint" style="margin:0 0 8px;">Ej.: Jeep Avenger → la campaña aparece en /cyber/jeep-avenger/.</p>
+                        <p style="margin:0 0 8px;">
+                            <button type="button" class="button promo-cyber-all">Seleccionar todos</button>
+                            <button type="button" class="button promo-cyber-none">Ninguno</button>
+                        </p>
+                        <div class="promo-cyber-list" style="max-height:240px; overflow:auto; border:1px solid #a9d5f2; background:#fff; padding:8px 10px; border-radius:4px;">
+                            <?php if (empty($lotteries)) : ?>
+                                <p class="promo-hint" style="margin:0;">No se encontraron sorteos (productos lottery).</p>
+                            <?php else : ?>
+                                <?php foreach ($lotteries as $lot) :
+                                    $lid = (int) $lot['id'];
+                                    $checked = in_array($lid, $selected_cyber_ids, true);
+                                    $status_label = ($lot['status'] !== 'publish') ? ' (' . $lot['status'] . ')' : '';
+                                    ?>
+                                    <label style="display:flex; align-items:flex-start; gap:8px; font-weight:500; margin:0 0 6px;">
+                                        <input type="checkbox" class="promo-cyber-cb" name="promo_cyber_lotteries[]" value="<?php echo esc_attr((string) $lid); ?>" <?php checked($checked); ?> />
+                                        <span><?php echo esc_html($lot['title'] . $status_label); ?> <span style="color:#888; font-weight:400;">#<?php echo (int) $lid; ?></span></span>
+                                    </label>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div class="promo-cyber-copy" style="margin-top:12px; border-top:1px dashed #a9d5f2; padding-top:10px;">
+                        <label style="font-weight:600; display:block; margin-bottom:4px;">Título del pack (ej. Pack Cyber Vista)</label>
+                        <input type="text" name="promo_cyber_title" value="<?php echo esc_attr($cyber_title); ?>" style="width:100%; margin-bottom:10px;" />
+                        <label style="font-weight:600; display:block; margin-bottom:4px;">Bullet 1 (ej. Participa por la Casa Vista Mar Dunares)</label>
+                        <input type="text" name="promo_cyber_bullet_1" value="<?php echo esc_attr($cyber_bullet_1); ?>" style="width:100%; margin-bottom:8px;" />
+                        <label style="font-weight:600; display:block; margin-bottom:4px;">Bullet 2 (ej. Incluye los 2 autos 0 Km.)</label>
+                        <input type="text" name="promo_cyber_bullet_2" value="<?php echo esc_attr($cyber_bullet_2); ?>" style="width:100%; margin-bottom:8px;" />
+                        <label style="font-weight:600; display:block; margin-bottom:4px;">Bullet 3 (ej. Más oportunidades de ganar)</label>
+                        <input type="text" name="promo_cyber_bullet_3" value="<?php echo esc_attr($cyber_bullet_3); ?>" style="width:100%; margin-bottom:6px;" />
+                        <p class="promo-hint" style="margin:0;">Estos textos aparecen en el banner de /cyber/. El precio, la cantidad, el % de descuento y el contador se calculan solos desde el pack "Cantidad x Valor" y la Fecha fin.</p>
+                    </div>
+                    <script>
+                    jQuery(function($){
+                        var $box = $('.promo-cyber-lotteries');
+                        function syncCyberLock(){
+                            $box.css('opacity', $('#promo_show_on_cyber').is(':checked') ? 1 : 0.55);
+                        }
+                        $('.promo-cyber-all').on('click', function(e){
+                            e.preventDefault();
+                            $box.find('.promo-cyber-cb').prop('checked', true);
+                        });
+                        $('.promo-cyber-none').on('click', function(e){
+                            e.preventDefault();
+                            $box.find('.promo-cyber-cb').prop('checked', false);
+                        });
+                        $('#promo_show_on_cyber').on('change', syncCyberLock);
+                        syncCyberLock();
+                    });
+                    </script>
+                </div>
+
                 <div class="promo-field">
                     <label>Tipo de promoción</label>
                     <select name="promo_type">
@@ -450,6 +588,7 @@ if (!class_exists('Promo_Engine_Stable')) :
                         <option value="2x1"     <?php selected($type,'2x1');      ?>>2x1</option>
                         <option value="3x2"     <?php selected($type,'3x2');      ?>>3x2</option>
                         <option value="bxpy"    <?php selected($type,'bxpy');     ?>>Personalizada (Lleva X / Paga Y)</option>
+                        <option value="bulk"    <?php selected($type,'bulk');     ?>>Cantidad x Valor (N DigiTickets por $ total)</option>
                     </select>
                 </div>
 
@@ -470,6 +609,21 @@ if (!class_exists('Promo_Engine_Stable')) :
                     <p class="promo-hint">Ej: 2x1 → Lleva 2, paga 1.</p>
                 </div>
 
+                <div class="promo-box-bulk">
+                    <label style="color:#0f6b46; display:block; margin-bottom:6px;">CANTIDAD x VALOR (PACK FIJO)</label>
+                    <p class="promo-hint" style="margin:0 0 8px;">El cliente lleva <strong>X</strong> DigiTickets y paga un total fijo de <strong>$</strong>, sin importar el precio unitario (ej. 30 x $50.000). Aplica a los sorteos marcados en la página /cyber/.</p>
+                    <div style="display:flex; gap:16px; flex-wrap:wrap;">
+                        <div class="promo-field" style="flex:0 0 160px;">
+                            <label>Cantidad (X)</label>
+                            <input type="number" min="2" step="1" name="promo_bulk_qty" value="<?php echo esc_attr($bulk_qty > 0 ? $bulk_qty : ''); ?>" />
+                        </div>
+                        <div class="promo-field" style="flex:0 0 200px;">
+                            <label>Valor total ($)</label>
+                            <input type="number" min="0" step="1" name="promo_bulk_price" value="<?php echo esc_attr($bulk_price); ?>" />
+                        </div>
+                    </div>
+                </div>
+
                 <script>
                     jQuery(function($){
                         function toggleBxpy(){
@@ -478,6 +632,7 @@ if (!class_exists('Promo_Engine_Stable')) :
                             $('.promo-bxpy-field').toggle(showBxpy);
                             var showAmount = (t === 'fixed' || t === 'percent');
                             $('input[name="promo_amount"]').closest('.promo-field').toggle(showAmount);
+                            $('.promo-box-bulk').toggle(t === 'bulk');
                         }
                         toggleBxpy();
                         $('select[name="promo_type"]').on('change', toggleBxpy);
@@ -506,6 +661,7 @@ if (!class_exists('Promo_Engine_Stable')) :
                 <div class="promo-field">
                     <label>Redenciones realizadas</label>
                     <input type="number" value="<?php echo esc_attr($redemptions); ?>" disabled />
+                    <p class="promo-hint">Uso efectivo: pedidos pagados (procesando/completado) con esta promo, sola o combinada. Contador histórico interno: <?php echo esc_attr($redemptions_legacy); ?> (se mantiene para límites).</p>
                 </div>
 
                 <div class="promo-field">
@@ -663,7 +819,8 @@ if (!class_exists('Promo_Engine_Stable')) :
 
                         function toggleAudience(){
                             var c = $('#promo_audience_condition').val() || '';
-                            $('#promo_audience_dates').toggle(c !== '');
+                            var needsDates = (c !== '' && c !== 'clientes_nuevos');
+                            $('#promo_audience_dates').toggle(needsDates);
                             $('.promo-audience-help').hide();
                             if (c) $('.promo-audience-help[data-cond="'+c+'"]').show();
                         }
@@ -742,7 +899,10 @@ if (!class_exists('Promo_Engine_Stable')) :
             $update('target_products', $target_products);
 
             $update('show_on_product', isset($_POST['promo_show_on_product']) && $_POST['promo_show_on_product'] === 'yes' ? 'yes' : 'no');
+            $update('show_on_product_banner', isset($_POST['promo_show_on_product_banner']) && $_POST['promo_show_on_product_banner'] === 'yes' ? 'yes' : 'no');
             $update('product_badge', sanitize_text_field($_POST['promo_product_badge'] ?? ''));
+            $product_color = sanitize_hex_color(wp_unslash($_POST['promo_product_color'] ?? ''));
+            $update('product_color', $product_color ? $product_color : '');
             $update('product_sort', intval($_POST['promo_product_sort'] ?? 10));
 
             if (isset($_POST['promo_target_lotteries_present'])) {
@@ -779,6 +939,21 @@ if (!class_exists('Promo_Engine_Stable')) :
                 $bought = array_values(array_filter($bought));
                 $update('bought_lotteries', $bought);
             }
+
+            $update('bulk_qty', max(1, intval($_POST['promo_bulk_qty'] ?? 1)));
+            $update('bulk_price', wc_format_decimal($_POST['promo_bulk_price'] ?? ''));
+
+            $update('show_on_cyber', isset($_POST['promo_show_on_cyber']) && $_POST['promo_show_on_cyber'] === 'yes' ? 'yes' : 'no');
+            if (isset($_POST['promo_cyber_lotteries_present'])) {
+                $cyber_lotteries = isset($_POST['promo_cyber_lotteries']) ? array_values(array_unique(array_map('absint', (array) $_POST['promo_cyber_lotteries']))) : [];
+                $cyber_lotteries = array_values(array_filter($cyber_lotteries));
+                $update('cyber_lotteries', $cyber_lotteries);
+            }
+
+            $update('cyber_title', sanitize_text_field($_POST['promo_cyber_title'] ?? ''));
+            $update('cyber_bullet_1', sanitize_text_field($_POST['promo_cyber_bullet_1'] ?? ''));
+            $update('cyber_bullet_2', sanitize_text_field($_POST['promo_cyber_bullet_2'] ?? ''));
+            $update('cyber_bullet_3', sanitize_text_field($_POST['promo_cyber_bullet_3'] ?? ''));
         }
 
         public function admin_columns($columns) {
@@ -881,19 +1056,29 @@ if (!class_exists('Promo_Engine_Stable')) :
 
             foreach ($scored_campaigns as $sc) {
                 if (in_array((int) $sc['id'], $applied_ids, true)) {
+                    $this->log('scoreddebug: already applied', array('cid' => (int) $sc['id']));
                     continue;
                 }
                 if (!empty($applied_ids)) {
                     $first_applied_stack = get_post_meta($applied_ids[0], self::META['stackable'], true) ?: 'no_coupons';
-                    if ($first_applied_stack === 'no') break;
+                    $this->log('scoreddebug: stack check', array('cid' => (int) $sc['id'], 'first_applied' => $applied_ids[0], 'first_stack' => $first_applied_stack, 'sc_stack' => $sc['stack_type']));
+                    if ($first_applied_stack === 'no') {
+                        $this->log('scoreddebug: BREAK first_applied=no', array('cid' => (int) $sc['id']));
+                        break;
+                    }
                 }
-                if ($sc['stack_type'] === 'no' && !empty($applied_ids)) continue;
+                if ($sc['stack_type'] === 'no' && !empty($applied_ids)) {
+                    $this->log('scoreddebug: SKIP sc stack=no', array('cid' => (int) $sc['id']));
+                    continue;
+                }
 
                 $final_calc = $this->calculate_discount_for_campaign($sc['id'], $cart, $consumed_quantities);
                 $final_disc = (float)$final_calc['discount'];
+                $this->log('scoreddebug: campaign calc', array('cid' => (int) $sc['id'], 'disc' => $final_disc));
 
                 if ($final_disc > 0) {
                     $this->add_promo_fees_for_calc($cart, $final_calc);
+                    $this->log('scoreddebug: fee added', array('cid' => (int) $sc['id'], 'disc' => $final_disc));
                     $applied_ids[] = (int)$sc['id'];
                     foreach ($final_calc['consumed'] as $key => $qty_used) {
                         $consumed_quantities[$key] = ($consumed_quantities[$key] ?? 0) + $qty_used;
@@ -1079,6 +1264,7 @@ if (!class_exists('Promo_Engine_Stable')) :
                     $campaign_ids[$cid] = true;
                 }
             }
+            $this->log('packdebug: cart pack cids', array_map('intval', array_keys($campaign_ids)));
             if (empty($campaign_ids)) {
                 return 0.0;
             }
@@ -1097,16 +1283,19 @@ if (!class_exists('Promo_Engine_Stable')) :
                     continue;
                 }
                 if (!$this->campaign_is_active_for_user($cid, $user_id)) {
+                    $this->log('packdebug: campaign inactive', array('cid' => $cid, 'user' => $user_id));
                     continue;
                 }
 
                 $final_calc = $this->calculate_discount_for_campaign($cid, $cart, $consumed_quantities);
                 $final_disc = (float) $final_calc['discount'];
+                $this->log('packdebug: campaign calc', array('cid' => $cid, 'disc' => $final_disc, 'type' => ($final_calc['type'] ?? '')));
                 if ($final_disc <= 0) {
                     continue;
                 }
                 if ($add_fees) {
                     $this->add_promo_fees_for_calc($cart, $final_calc);
+                    $this->log('packdebug: fee added', array('cid' => $cid, 'disc' => $final_disc));
                 }
                 $sum += $final_disc;
                 if (!in_array($cid, $applied_ids, true)) {
@@ -1155,6 +1344,25 @@ if (!class_exists('Promo_Engine_Stable')) :
         }
 
         /* ------------------ Validación / Segmentación ------------------ */
+
+        /**
+         * Visibilidad desde contexto estático (grid de packs /cyber/).
+         * Usa TODOS los gates de campaign_is_active_for_user: fechas, cupos,
+         * 1 uso por cliente, días tras registro, segmentación y audiencia.
+         *
+         * @param int      $campaign_id
+         * @param int|null $user_id null = usuario actual.
+         * @return bool
+         */
+        public static function campaign_is_visible_for_user($campaign_id, $user_id = null) {
+            if ($user_id === null) {
+                $user_id = function_exists('get_current_user_id') ? (int) get_current_user_id() : 0;
+            }
+            if (!self::$instance) {
+                return true;
+            }
+            return (bool) self::$instance->campaign_is_active_for_user((int) $campaign_id, (int) $user_id);
+        }
 
         public function campaign_is_active_for_user($campaign_id, $user_id) {
             $now = current_time('timestamp');
@@ -1344,6 +1552,10 @@ if (!class_exists('Promo_Engine_Stable')) :
                     'label' => 'Registrados que no compraron',
                     'help'  => 'Cuentas creadas en el período sin pedido pagado en esas fechas.',
                 ],
+                'clientes_nuevos' => [
+                    'label' => 'Clientes nuevos (solo invitados)',
+                    'help'  => 'Personas sin cuenta registrada y que nunca han pagado un pedido. Sin fechas: se evalúa sobre todo el historial.',
+                ],
             ];
         }
 
@@ -1383,7 +1595,9 @@ if (!class_exists('Promo_Engine_Stable')) :
             }
             $from = (string) get_post_meta($campaign_id, self::META['audience_from'], true);
             $to   = (string) get_post_meta($campaign_id, self::META['audience_to'], true);
-            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) || $from > $to) {
+            // clientes_nuevos no usa fechas: evalúa todo el historial (invitado sin compras).
+            $needs_dates = $cond !== 'clientes_nuevos';
+            if ($needs_dates && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) || $from > $to)) {
                 // Condición elegida pero fechas inválidas: no aplicar bono (evita abrir a todos por error).
                 return false;
             }
@@ -1394,8 +1608,12 @@ if (!class_exists('Promo_Engine_Stable')) :
                 return $cache[ $cache_key ];
             }
 
-            $is_registered = $this->user_registered_in_period((int) $user_id, $from, $to);
-            $is_buyer      = $this->customer_bought_in_period((int) $user_id, $this->resolve_customer_email($user_id), $from, $to);
+            $is_registered = false;
+            $is_buyer      = false;
+            if ($cond !== 'clientes_nuevos') {
+                $is_registered = $this->user_registered_in_period((int) $user_id, $from, $to);
+                $is_buyer      = $this->customer_bought_in_period((int) $user_id, $this->resolve_customer_email($user_id), $from, $to);
+            }
 
             switch ($cond) {
                 case 'registrados':
@@ -1412,6 +1630,14 @@ if (!class_exists('Promo_Engine_Stable')) :
                     break;
                 case 'registrados_sin_compra':
                     $ok = $is_registered && !$is_buyer;
+                    break;
+                case 'clientes_nuevos':
+                    $email = $this->resolve_customer_email($user_id);
+                    // Invitado 100%: sin cuenta de sesión, el correo no pertenece a ninguna
+                    // cuenta registrada y nunca ha pagado.
+                    $ok = ($user_id <= 0)
+                        && ($email === '' || !email_exists($email))
+                        && !$this->customer_ever_bought((int) $user_id, $email);
                     break;
                 default:
                     $ok = true;
@@ -1470,6 +1696,38 @@ if (!class_exists('Promo_Engine_Stable')) :
             if ($email !== '' && is_email($email)) {
                 $ids = wc_get_orders(array_merge($base, ['billing_email' => $email]));
                 if (!empty($ids)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * true si el cliente tiene ALGÚN pedido pagado en todo el historial (cuenta o email).
+         * Usado por la audiencia "clientes nuevos" (no registrado y nunca compró).
+         */
+        private function customer_ever_bought($user_id, string $email): bool {
+            if (!function_exists('wc_get_orders')) {
+                return false;
+            }
+            $user_id = (int) $user_id;
+            $email   = strtolower(trim($email));
+            if ($user_id <= 0 && $email === '') {
+                return false;
+            }
+            $base = [
+                'limit'  => 1,
+                'status' => self::PAID_STATUSES,
+                'type'   => 'shop_order',
+                'return' => 'ids',
+            ];
+            if ($user_id > 0) {
+                if (!empty(wc_get_orders(array_merge($base, ['customer_id' => $user_id])))) {
+                    return true;
+                }
+            }
+            if ($email !== '' && is_email($email)) {
+                if (!empty(wc_get_orders(array_merge($base, ['billing_email' => $email])))) {
                     return true;
                 }
             }
@@ -1688,8 +1946,8 @@ if (!class_exists('Promo_Engine_Stable')) :
                     // Los bonos fijos/% acumulables SÍ deben aplicar sobre líneas de pack.
                     if ($line_pack > 0 && $line_pack !== (int) $campaign_id) {
                         $is_pack_campaign = (get_post_meta($campaign_id, self::META['show_on_product'], true) === 'yes')
-                            || (get_post_meta($campaign_id, self::META['show_on_preload'], true) === 'yes' && in_array($type, ['2x1', '3x2', 'bxpy'], true))
-                            || in_array($type, ['2x1', '3x2', 'bxpy'], true);
+                            || ((get_post_meta($campaign_id, self::META['show_on_preload'], true) === 'yes' || get_post_meta($campaign_id, self::META['show_on_cyber'], true) === 'yes') && in_array($type, ['2x1', '3x2', 'bxpy', 'bulk'], true))
+                            || in_array($type, ['2x1', '3x2', 'bxpy', 'bulk'], true);
                         if ($is_pack_campaign) {
                             continue;
                         }
@@ -1697,7 +1955,7 @@ if (!class_exists('Promo_Engine_Stable')) :
                     $original_qty = (int) $item['quantity'];
                     // Inventario virtual solo para BxPy/2x1/3x2. fixed/percent se acumulan en $ sobre la misma línea.
                     $used_qty = 0;
-                    if (in_array($type, ['2x1', '3x2', 'bxpy'], true)) {
+                    if (in_array($type, ['2x1', '3x2', 'bxpy', 'bulk'], true)) {
                         $used_qty = isset($already_consumed_map[$key]) ? (int) $already_consumed_map[$key] : 0;
                     }
                     $available_qty = max(0, $original_qty - $used_qty);
@@ -1759,6 +2017,30 @@ if (!class_exists('Promo_Engine_Stable')) :
                             $blocks = floor($quantity / $buy);
                             $line_d = ($blocks * ($buy - $pay)) * $price;
                             $consumed_in_calc[$k] = $blocks * $buy;
+                            if ($line_d > 0) {
+                                $lines[$k] = ['discount' => $line_d, 'item' => $it];
+                                $discount += $line_d;
+                            }
+                        }
+                    }
+                }
+            }
+            elseif ($type === 'bulk') {
+                // "N DigiTickets x $P": cada bloque de N se paga a valor fijo.
+                $bulk_qty   = max(1, (int) get_post_meta($campaign_id, self::META['bulk_qty'], true));
+                $bulk_price = (float) get_post_meta($campaign_id, self::META['bulk_price'], true);
+                if ($bulk_qty > 1 && $bulk_price > 0) {
+                    foreach ($eligible_items as $k => $it) {
+                        $quantity = (int) $it['quantity'];
+                        if ($quantity >= $bulk_qty) {
+                            $price  = (float) wc_get_price_excluding_tax($it['data']);
+                            $blocks = floor($quantity / $bulk_qty);
+                            $list   = $blocks * $bulk_qty * $price;
+                            $line_d = $list - ($blocks * $bulk_price);
+                            if ($line_d > (float) $it['line_subtotal']) {
+                                $line_d = (float) $it['line_subtotal'];
+                            }
+                            $consumed_in_calc[$k] = (int) ($blocks * $bulk_qty);
                             if ($line_d > 0) {
                                 $lines[$k] = ['discount' => $line_d, 'item' => $it];
                                 $discount += $line_d;
@@ -1850,6 +2132,65 @@ if (!class_exists('Promo_Engine_Stable')) :
         }
 
         /**
+         * p15/p16: uso efectivo real de una campaña (SOLO LECTURA, para display).
+         * Cuenta pedidos pagados DISTINTOS (processing/completed, sin reembolsos padre)
+         * con el descuento [PROMO] de esta campaña aplicado (monto negativo), solo o
+         * combinado con otras promos. Mismo criterio que la tabla "Uso efectivo" del CIV,
+         * por lo que ambos muestran el mismo número. Genérico: sirve para cualquier
+         * campaña existente o futura (usa su título, sin IDs hardcodeados).
+         * No toca metas, límites ni consumo.
+         *
+         * @param int $campaign_id
+         * @return int
+         */
+        public static function count_effective_redemptions($campaign_id) {
+            global $wpdb;
+            $cid = (int) $campaign_id;
+            if ($cid <= 0) {
+                return 0;
+            }
+            $stats = $wpdb->prefix . 'wc_order_stats';
+            $items = $wpdb->prefix . 'woocommerce_order_items';
+            $meta  = $wpdb->prefix . 'woocommerce_order_itemmeta';
+            if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $stats)) !== $stats
+                || $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $items)) !== $items
+                || $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $meta)) !== $meta) {
+                return (int) get_post_meta($cid, self::META['redemptions'], true);
+            }
+            $title = get_the_title($cid);
+            if (!is_string($title) || trim($title) === '') {
+                return 0;
+            }
+            // Fee de bono: "[PROMO] {título}". Fee de pack: "[PROMO] {título} — {producto}".
+            $like = '[PROMO] ' . $wpdb->esc_like(trim($title)) . '%';
+            $sql = "SELECT COUNT(*) FROM (
+                    SELECT oi.order_id
+                    FROM {$stats} s
+                    INNER JOIN {$items} oi ON oi.order_id = s.order_id
+                        AND oi.order_item_type = 'fee'
+                        AND oi.order_item_name LIKE %s
+                    INNER JOIN {$meta} m ON m.order_item_id = oi.order_item_id
+                        AND m.meta_key IN ('_line_total', '_line_tax')
+                    WHERE s.parent_id = 0 AND s.status IN ('wc-processing', 'wc-completed')
+                    GROUP BY oi.order_id
+                    HAVING SUM(m.meta_value + 0) < 0
+                ) t";
+            $n = $wpdb->get_var($wpdb->prepare($sql, $like));
+            return $n === null ? 0 : (int) $n;
+        }
+
+        /**
+         * Color de acento del pack (hex válido) o '' si no se definió.
+         *
+         * @param int $campaign_id
+         * @return string
+         */
+        public static function get_campaign_color($campaign_id) {
+            $color = sanitize_hex_color((string) get_post_meta((int) $campaign_id, self::META['product_color'], true));
+            return $color ? $color : '';
+        }
+
+        /**
          * Campañas publicadas, vigentes y marcadas para ficha de producto.
          * Usado por la UI de packs (Fase C) y el flujo AJAX (Fase B).
          *
@@ -1905,10 +2246,15 @@ if (!class_exists('Promo_Engine_Stable')) :
                 } elseif ($type === 'bxpy') {
                     $buy = max(1, (int) get_post_meta($campaign_id, self::META['bxpy_buy'], true));
                     $pay = max(1, (int) get_post_meta($campaign_id, self::META['bxpy_pay'], true));
+                } elseif ($type === 'bulk') {
+                    $buy = max(1, (int) get_post_meta($campaign_id, self::META['bulk_qty'], true));
                 }
 
                 $sort = (int) get_post_meta($campaign_id, self::META['product_sort'], true);
                 $pricing = self::get_product_page_pack_pricing($campaign_id, $product_id);
+                if ($type === 'bulk') {
+                    $pay = self::bulk_display_pay($buy, $pricing['pack_price'], $pricing['unit_price']);
+                }
 
                 $rows[] = [
                     'id'         => $campaign_id,
@@ -1917,6 +2263,7 @@ if (!class_exists('Promo_Engine_Stable')) :
                     'buy'        => $buy,
                     'pay'        => $pay,
                     'badge'      => (string) get_post_meta($campaign_id, self::META['product_badge'], true),
+                    'color'      => self::get_campaign_color($campaign_id),
                     'sort'       => $sort,
                     'unit_price' => $pricing['unit_price'],
                     'list_price' => $pricing['list_price'],
@@ -1933,6 +2280,57 @@ if (!class_exists('Promo_Engine_Stable')) :
             });
 
             return $rows;
+        }
+
+        /**
+         * Banners de pack para la ficha de producto normal (/producto/).
+         * Toma los packs de ficha ("Cantidad x Valor" o "Lleva X / Paga Y") con la
+         * meta show_on_product_banner=yes, respetando el orden en ficha.
+         * Solo lectura: no cambia la lógica de compra (la selección usa el AJAX de packs).
+         *
+         * @param int $product_id
+         * @return array<int, array<string, mixed>>
+         */
+        public static function get_product_page_banners($product_id = 0) {
+            $product_id = absint($product_id);
+            if (!$product_id) {
+                return [];
+            }
+
+            $out = [];
+            foreach (self::get_product_page_campaigns($product_id) as $r) {
+                $cid = (int) ($r['id'] ?? 0);
+                if ($cid <= 0) {
+                    continue;
+                }
+                if (get_post_meta($cid, self::META['show_on_product_banner'], true) !== 'yes') {
+                    continue;
+                }
+                $type = (string) ($r['type'] ?? '');
+                if (!in_array($type, ['bulk', 'bxpy'], true)) {
+                    continue;
+                }
+
+                $list    = (float) ($r['list_price'] ?? 0);
+                $price   = (float) ($r['pack_price'] ?? 0);
+                $savings = max(0, $list - $price);
+                $percent = $list > 0 ? (int) round($savings / $list * 100) : 0;
+
+                $out[] = [
+                    'id'         => $cid,
+                    'type'       => $type,
+                    'qty'        => max(1, (int) ($r['buy'] ?? 1)),
+                    'pay'        => max(1, (int) ($r['pay'] ?? 1)),
+                    'price'      => $price,
+                    'list_price' => $list,
+                    'savings'    => $savings,
+                    'percent'    => $percent,
+                    'color'      => self::get_campaign_color($cid),
+                    'end_ts'     => self::parse_wp_datetime(get_post_meta($cid, self::META['end'], true), true),
+                ];
+            }
+
+            return $out;
         }
 
         /**
@@ -1972,7 +2370,7 @@ if (!class_exists('Promo_Engine_Stable')) :
 
                 $type = get_post_meta($campaign_id, self::META['type'], true) ?: 'fixed';
                 // Solo DigiPacks en el grid de packs; fixed/% se aplican por fee al checkout.
-                if (!in_array($type, ['2x1', '3x2', 'bxpy'], true)) {
+                if (!in_array($type, ['2x1', '3x2', 'bxpy', 'bulk'], true)) {
                     continue;
                 }
 
@@ -1999,10 +2397,15 @@ if (!class_exists('Promo_Engine_Stable')) :
                 } elseif ($type === 'bxpy') {
                     $buy = max(1, (int) get_post_meta($campaign_id, self::META['bxpy_buy'], true));
                     $pay = max(1, (int) get_post_meta($campaign_id, self::META['bxpy_pay'], true));
+                } elseif ($type === 'bulk') {
+                    $buy = max(1, (int) get_post_meta($campaign_id, self::META['bulk_qty'], true));
                 }
 
                 $sort = (int) get_post_meta($campaign_id, self::META['product_sort'], true);
                 $pricing = self::get_product_page_pack_pricing($campaign_id, $product_id);
+                if ($type === 'bulk') {
+                    $pay = self::bulk_display_pay($buy, $pricing['pack_price'], $pricing['unit_price']);
+                }
 
                 $rows[] = [
                     'id'         => $campaign_id,
@@ -2011,6 +2414,7 @@ if (!class_exists('Promo_Engine_Stable')) :
                     'buy'        => $buy,
                     'pay'        => $pay,
                     'badge'      => (string) get_post_meta($campaign_id, self::META['product_badge'], true),
+                    'color'      => self::get_campaign_color($campaign_id),
                     'sort'       => $sort,
                     'unit_price' => $pricing['unit_price'],
                     'list_price' => $pricing['list_price'],
@@ -2027,6 +2431,267 @@ if (!class_exists('Promo_Engine_Stable')) :
             });
 
             return $rows;
+        }
+
+        /**
+         * p18: DigiPacks (2x1/3x2/bxpy/bulk) marcados para la página /cyber/ de este sorteo.
+         * Independiente de ficha y /oferta/. Mismos gates de vigencia y cupo.
+         *
+         * @param int $product_id
+         * @return array<int, array<string, mixed>>
+         */
+        public static function get_cyber_page_campaigns($product_id = 0) {
+            $product_id = absint($product_id);
+            if (!$product_id) {
+                return [];
+            }
+            $q = new WP_Query([
+                'post_type'      => self::CPT,
+                'post_status'    => 'publish',
+                'posts_per_page' => 100,
+                'fields'         => 'ids',
+                'no_found_rows'  => true,
+                'meta_query'     => [
+                    [
+                        'key'   => self::META['show_on_cyber'],
+                        'value' => 'yes',
+                    ],
+                ],
+            ]);
+
+            $now = current_time('timestamp');
+            $rows = [];
+
+            foreach ($q->posts as $campaign_id) {
+                $campaign_id = (int) $campaign_id;
+                if (!self::campaign_targets_cyber_lottery($campaign_id, $product_id)) {
+                    continue;
+                }
+
+                $type = get_post_meta($campaign_id, self::META['type'], true) ?: 'fixed';
+                // Solo packs en el grid; fixed/% no se muestran como pack.
+                if (!in_array($type, ['2x1', '3x2', 'bxpy', 'bulk'], true)) {
+                    continue;
+                }
+
+                // Segmentación + audiencia: el pack solo se muestra a quien califica.
+                if (!self::campaign_is_visible_for_user($campaign_id)) {
+                    continue;
+                }
+
+                $start_ts = self::parse_wp_datetime(get_post_meta($campaign_id, self::META['start'], true), false);
+                $end_ts   = self::parse_wp_datetime(get_post_meta($campaign_id, self::META['end'], true), true);
+                if (($start_ts && $now < $start_ts) || ($end_ts && $now > $end_ts)) {
+                    continue;
+                }
+
+                $limit_total = (int) get_post_meta($campaign_id, self::META['limit_total'], true);
+                $redemptions = (int) get_post_meta($campaign_id, self::META['redemptions'], true);
+                if ($limit_total > 0 && $redemptions >= $limit_total) {
+                    continue;
+                }
+
+                $buy = 1;
+                $pay = 1;
+                if ($type === '2x1') {
+                    $buy = 2;
+                    $pay = 1;
+                } elseif ($type === '3x2') {
+                    $buy = 3;
+                    $pay = 2;
+                } elseif ($type === 'bxpy') {
+                    $buy = max(1, (int) get_post_meta($campaign_id, self::META['bxpy_buy'], true));
+                    $pay = max(1, (int) get_post_meta($campaign_id, self::META['bxpy_pay'], true));
+                } elseif ($type === 'bulk') {
+                    $buy = max(1, (int) get_post_meta($campaign_id, self::META['bulk_qty'], true));
+                }
+
+                $sort = (int) get_post_meta($campaign_id, self::META['product_sort'], true);
+                $pricing = self::get_product_page_pack_pricing($campaign_id, $product_id);
+                if ($type === 'bulk') {
+                    $pay = self::bulk_display_pay($buy, $pricing['pack_price'], $pricing['unit_price']);
+                }
+
+                $rows[] = [
+                    'id'         => $campaign_id,
+                    'title'      => get_the_title($campaign_id),
+                    'type'       => $type,
+                    'buy'        => $buy,
+                    'pay'        => $pay,
+                    'badge'      => (string) get_post_meta($campaign_id, self::META['product_badge'], true),
+                    'color'      => self::get_campaign_color($campaign_id),
+                    'sort'       => $sort,
+                    'unit_price' => $pricing['unit_price'],
+                    'list_price' => $pricing['list_price'],
+                    'pack_price' => $pricing['pack_price'],
+                    'savings'    => $pricing['savings'],
+                ];
+            }
+
+            usort($rows, function ($a, $b) {
+                if ($a['sort'] === $b['sort']) {
+                    return $a['id'] <=> $b['id'];
+                }
+                return $a['sort'] <=> $b['sort'];
+            });
+
+            return $rows;
+        }
+
+        /**
+         * p19: datos para el banner /cyber/ de este sorteo (SOLO LECTURA).
+         * Toma el primer pack bulk visible para el usuario y deriva precio, cantidad,
+         * valor tachado (qty x unitario), % de descuento y la fecha fin (contador).
+         * Mismos gates que get_cyber_page_campaigns (segmentación/audiencia incluidas).
+         *
+         * @param int $product_id
+         * @return array<string, mixed>
+         */
+        public static function get_cyber_banner_data($product_id) {
+            $product_id = absint($product_id);
+            if (!$product_id) {
+                return [];
+            }
+            $rows = self::get_cyber_page_campaigns($product_id);
+            if (!$rows) {
+                return [];
+            }
+            $chosen = null;
+            foreach ($rows as $r) {
+                if ((string) ($r['type'] ?? '') === 'bulk') {
+                    $chosen = $r;
+                    break;
+                }
+            }
+            if (!$chosen) {
+                return [];
+            }
+
+            $cid   = (int) $chosen['id'];
+            $qty   = max(1, (int) get_post_meta($cid, self::META['bulk_qty'], true));
+            $price = (float) get_post_meta($cid, self::META['bulk_price'], true);
+            $unit  = (float) ($chosen['unit_price'] ?? 0);
+            $list  = $unit > 0 ? ($unit * $qty) : (float) ($chosen['list_price'] ?? 0);
+            if ($list <= 0) {
+                $list = $price;
+            }
+            $savings = max(0, $list - $price);
+            $percent = $list > 0 ? (int) round($savings / $list * 100) : 0;
+
+            $bullets = [];
+            for ($i = 1; $i <= 3; $i++) {
+                $b = trim((string) get_post_meta($cid, self::META['cyber_bullet_' . $i], true));
+                if ($b !== '') {
+                    $bullets[] = $b;
+                }
+            }
+
+            return [
+                'id'         => $cid,
+                'pack_title' => trim((string) get_post_meta($cid, self::META['cyber_title'], true)),
+                'bullets'    => $bullets,
+                'qty'        => $qty,
+                'price'      => $price,
+                'list_price' => $list,
+                'savings'    => $savings,
+                'percent'    => $percent,
+                'end_ts'     => self::parse_wp_datetime(get_post_meta($cid, self::META['end'], true), true),
+            ];
+        }
+
+        /** p: "pay" de display para bulk (N tickets por $P) acorde al precio unitario. */
+        private static function bulk_display_pay($quantity, $pack_price, $unit_price): int {
+            $quantity = max(1, (int) $quantity);
+            if ($quantity <= 1) {
+                return 1;
+            }
+            $pack_price = (float) $pack_price;
+            $unit_price = (float) $unit_price;
+            if ($pack_price > 0 && $unit_price > 0) {
+                $pay = (int) round($pack_price / $unit_price);
+                if ($pay < 1) {
+                    $pay = 1;
+                }
+                if ($pay > $quantity - 1) {
+                    $pay = $quantity - 1;
+                }
+                return max(1, $pay);
+            }
+            return 1;
+        }
+
+        /**
+         * p17: bono fixed/% precargado vigente para /oferta/ (SOLO LECTURA, banner del aside).
+         * Primera campaña (por ID menor) que: show_on_preload=yes, incluye el sorteo,
+         * tipo fixed/percent, vigente, con cupo y (si aplica) con su 1 uso disponible.
+         * Mismos gates que el grid de packs. No toca consumo, límites ni sesión.
+         *
+         * @param int $product_id
+         * @return array{id:int,title:string,type:string}|array{}
+         */
+        public static function get_preload_bono_message_data($product_id) {
+            $product_id = absint($product_id);
+            if (!$product_id) {
+                return [];
+            }
+            $q = new WP_Query([
+                'post_type'      => self::CPT,
+                'post_status'    => 'publish',
+                'posts_per_page' => 100,
+                'fields'         => 'ids',
+                'no_found_rows'  => true,
+                'meta_query'     => [
+                    [
+                        'key'   => self::META['show_on_preload'],
+                        'value' => 'yes',
+                    ],
+                ],
+            ]);
+
+            $now = current_time('timestamp');
+            $user_id = function_exists('get_current_user_id') ? (int) get_current_user_id() : 0;
+            $best = null;
+
+            foreach ($q->posts as $campaign_id) {
+                $campaign_id = (int) $campaign_id;
+                if (!self::campaign_targets_preload_lottery($campaign_id, $product_id)) {
+                    continue;
+                }
+
+                $type = get_post_meta($campaign_id, self::META['type'], true) ?: 'fixed';
+                if (!in_array($type, ['fixed', 'percent'], true)) {
+                    continue;
+                }
+
+                $start_ts = self::parse_wp_datetime(get_post_meta($campaign_id, self::META['start'], true), false);
+                $end_ts   = self::parse_wp_datetime(get_post_meta($campaign_id, self::META['end'], true), true);
+                if (($start_ts && $now < $start_ts) || ($end_ts && $now > $end_ts)) {
+                    continue;
+                }
+
+                $limit_total = (int) get_post_meta($campaign_id, self::META['limit_total'], true);
+                $redemptions = (int) get_post_meta($campaign_id, self::META['redemptions'], true);
+                if ($limit_total > 0 && $redemptions >= $limit_total) {
+                    continue;
+                }
+
+                if ($user_id && (int) get_post_meta($campaign_id, self::META['limit_per_user'], true)) {
+                    $used = get_user_meta($user_id, 'promo_engine_used_campaigns', true);
+                    if (is_array($used) && in_array($campaign_id, $used, true)) {
+                        continue;
+                    }
+                }
+
+                if ($best === null || $campaign_id < $best['id']) {
+                    $best = [
+                        'id'    => $campaign_id,
+                        'title' => (string) get_the_title($campaign_id),
+                        'type'  => $type,
+                    ];
+                }
+            }
+
+            return $best === null ? [] : $best;
         }
 
         /**
@@ -2064,6 +2729,17 @@ if (!class_exists('Promo_Engine_Stable')) :
             } elseif ($type === 'bxpy') {
                 $buy = max(1, (int) get_post_meta($campaign_id, self::META['bxpy_buy'], true));
                 $pay = max(1, (int) get_post_meta($campaign_id, self::META['bxpy_pay'], true));
+            } elseif ($type === 'bulk') {
+                $buy = max(1, (int) get_post_meta($campaign_id, self::META['bulk_qty'], true));
+                $bulk_price = (float) get_post_meta($campaign_id, self::META['bulk_price'], true);
+                $list = $unit * $buy;
+                $pack = $bulk_price > 0 ? $bulk_price : $list;
+                return [
+                    'unit_price' => $unit,
+                    'list_price' => $list,
+                    'pack_price' => $pack,
+                    'savings'    => max(0, $list - $pack),
+                ];
             }
 
             $list = $unit * $buy;
@@ -2115,12 +2791,43 @@ if (!class_exists('Promo_Engine_Stable')) :
                 return false;
             }
             $show = get_post_meta($campaign_id, self::META['show_on_product'], true);
-            if ($show !== 'yes') {
-                return true;
+            if ($show === 'yes') {
+                $raw = get_post_meta($campaign_id, self::META['target_lotteries'], true);
+                if (is_array($raw)) {
+                    $ids = array_values(array_filter(array_map('absint', $raw)));
+                    if (!$ids || !in_array($product_id, $ids, true)) {
+                        return false;
+                    }
+                }
             }
-            $raw = get_post_meta($campaign_id, self::META['target_lotteries'], true);
+            // Superficie /cyber/: si está marcada, solo aplica en sus sorteos.
+            $show_cyber = get_post_meta($campaign_id, self::META['show_on_cyber'], true);
+            if ($show_cyber === 'yes') {
+                $raw_cyber = get_post_meta($campaign_id, self::META['cyber_lotteries'], true);
+                if (!is_array($raw_cyber)) {
+                    return false;
+                }
+                $cyber_ids = array_values(array_filter(array_map('absint', $raw_cyber)));
+                if (!$cyber_ids || !in_array($product_id, $cyber_ids, true)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /** True si la campaña /cyber/ incluye este sorteo. Array vacío = ninguno. */
+        public static function campaign_targets_cyber_lottery($campaign_id, $product_id): bool {
+            $campaign_id = absint($campaign_id);
+            $product_id  = absint($product_id);
+            if (!$campaign_id || !$product_id) {
+                return false;
+            }
+            if (get_post_meta($campaign_id, self::META['show_on_cyber'], true) !== 'yes') {
+                return false;
+            }
+            $raw = get_post_meta($campaign_id, self::META['cyber_lotteries'], true);
             if (!is_array($raw)) {
-                return true;
+                return false;
             }
             $ids = array_values(array_filter(array_map('absint', $raw)));
             if (!$ids) {

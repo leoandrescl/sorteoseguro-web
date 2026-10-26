@@ -42,23 +42,31 @@ $ico = static function (string $name): string {
 			</div>
 		<?php endforeach; ?>
 
-		<?php foreach (WC()->cart->get_fees() as $fee) : ?>
-			<?php
-			$is_promo = strpos((string) $fee->name, '[PROMO]') !== false;
-			if (!$is_promo && (float) $fee->amount >= 0) {
-				?>
-				<div class="ss-cart-totals__row fee">
-					<span><?php echo esc_html($fee->name); ?></span>
-					<span><?php wc_cart_totals_fee_html($fee); ?></span>
-				</div>
-				<?php
+		<?php
+		$ss_fees = WC()->cart->get_fees();
+		// 1) Promos del motor (en su orden).
+		foreach ($ss_fees as $fee) :
+			if (strpos((string) $fee->name, '[PROMO]') === false) {
 				continue;
 			}
-			$promo_name = trim(str_replace('[PROMO]', '', (string) $fee->name));
+			$promo_name  = trim(str_replace('[PROMO]', '', (string) $fee->name));
 			$promo_label = 'PROMO - ' . strtoupper($promo_name);
 			?>
 			<div class="ss-cart-totals__row ss-cart-totals__row--discount">
 				<span><?php echo esc_html($promo_label); ?></span>
+				<span><?php echo wp_kses_post(wc_price($fee->amount)); ?></span>
+			</div>
+		<?php endforeach; ?>
+		<?php
+		// 2) Fees propias (descuento de recuperación) al final.
+		foreach ($ss_fees as $fee) :
+			if (strpos((string) $fee->name, '[PROMO]') !== false) {
+				continue;
+			}
+			$row_class = ((float) $fee->amount < 0) ? 'ss-cart-totals__row--discount' : 'fee';
+			?>
+			<div class="ss-cart-totals__row <?php echo esc_attr($row_class); ?>">
+				<span><?php echo esc_html($fee->name); ?></span>
 				<span><?php echo wp_kses_post(wc_price($fee->amount)); ?></span>
 			</div>
 		<?php endforeach; ?>

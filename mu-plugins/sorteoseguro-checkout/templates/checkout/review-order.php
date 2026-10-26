@@ -81,15 +81,29 @@ defined('ABSPATH') || exit;
 		<?php endforeach; ?>
 
 		<?php
-		foreach (WC()->cart->get_fees() as $fee) {
-			if (strpos($fee->name, '[PROMO]') === false) {
+		$ss_fees = WC()->cart->get_fees();
+		// 1) Promos del motor (en su orden).
+		foreach ($ss_fees as $fee) {
+			if (strpos((string) $fee->name, '[PROMO]') === false) {
 				continue;
 			}
-			$promo_name = trim(str_replace('[PROMO]', '', $fee->name));
+			$promo_name  = trim(str_replace('[PROMO]', '', (string) $fee->name));
 			$clean_label = 'PROMO - ' . strtoupper($promo_name);
 			?>
 			<div class="ss-co-totals__row ss-co-totals__row--discount">
 				<span><?php echo esc_html($clean_label); ?></span>
+				<span><?php echo wp_kses_post(wc_price($fee->amount)); ?></span>
+			</div>
+			<?php
+		}
+		// 2) Descuento de recuperación (se aplica al final).
+		foreach ($ss_fees as $fee) {
+			if (strpos((string) $fee->name, '[PROMO]') !== false || (float) $fee->amount >= 0) {
+				continue;
+			}
+			?>
+			<div class="ss-co-totals__row ss-co-totals__row--discount">
+				<span><?php echo esc_html($fee->name); ?></span>
 				<span><?php echo wp_kses_post(wc_price($fee->amount)); ?></span>
 			</div>
 			<?php

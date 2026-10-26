@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class SorteoSeguro_Packs_Lottery {
 
-	const VERSION        = '1.3.31';
+	const VERSION        = '1.4.11';
 	const AJAX_ACTION    = 'ss_packs_select';
 	const NONCE_ACTION   = 'ss_packs_lottery';
 	const LOCK_PREFIX    = 'ss_pack_lock_';
@@ -234,6 +234,10 @@ final class SorteoSeguro_Packs_Lottery {
 			'embeddedCheckout' => false,
 			'checkoutAnchor'   => '',
 			'campaigns' => $campaigns,
+			'assets'    => array(
+				'bag'     => content_url('mu-plugins/sorteoseguro-packs-lottery/icono-bolsa-cyber.png') . '?v=' . rawurlencode(self::VERSION),
+				'tickets' => content_url('mu-plugins/sorteoseguro-packs-lottery/tickets-cyber.png') . '?v=' . rawurlencode(self::VERSION),
+			),
 			'i18n'      => array(
 				'heading'     => 'Elige cuántos DigiTickets quieres',
 				'subheading'  => 'Mientras más DigiTickets compres, mayor será tu ahorro',
@@ -242,6 +246,9 @@ final class SorteoSeguro_Packs_Lottery {
 				'packBasic'   => 'PACK BÁSICO',
 				'packName'    => 'PACK {buy}x{pay}',
 				'promoTag'    => "Pagas {pay} y\nrecibes {buy}",
+				'giftTag'     => "Lleva {buy} y te regalamos {gift}",
+				'giftBadge'   => 'REGALO',
+				'packGift'    => 'PACK REGALO',
 				'priceNormal' => 'PRECIO NORMAL',
 				'saveLabel'   => 'AHORRAS',
 				'perPack'     => 'por {n} DigiTickets',
@@ -266,6 +273,24 @@ final class SorteoSeguro_Packs_Lottery {
 			),
 		);
 		$config = apply_filters('ss_packs_lottery_config', $config, $product_id);
+
+		// Banner de pack en ficha de producto normal (/producto/[slug]). Solo ahí.
+		if (function_exists('is_singular') && is_singular('product')
+			&& class_exists('Promo_Engine_Stable')
+			&& method_exists('Promo_Engine_Stable', 'get_product_page_banners')) {
+			$banners = Promo_Engine_Stable::get_product_page_banners($product_id);
+			if (!empty($banners)) {
+				$banner_ids = array_map(static function ($b) { return (int) ($b['id'] ?? 0); }, $banners);
+				$kept = array();
+				foreach ((array) $config['campaigns'] as $row) {
+					if (!in_array((int) ($row['id'] ?? 0), $banner_ids, true)) {
+						$kept[] = $row;
+					}
+				}
+				$config['campaigns'] = $kept;
+				$config['productBanners'] = $banners;
+			}
+		}
 
 		echo "\n<!-- ss-packs-lottery v" . esc_html(self::VERSION) . " product=" . (int) $product_id . " -->\n";
 		echo '<style id="ss-packs-lottery-css">' . self::front_css() . "</style>\n";
@@ -405,6 +430,7 @@ JS;
 			'buy'        => 1,
 			'pay'        => 1,
 			'badge'      => self::default_pack_badge(1, 1, ''),
+			'color'      => '',
 			'sort'       => 0,
 			'unit_price' => $unit,
 			'list_price' => $unit,
@@ -423,6 +449,7 @@ JS;
 					'buy'        => $buy,
 					'pay'        => $pay,
 					'badge'      => self::default_pack_badge($buy, $pay, (string) ($c['badge'] ?? '')),
+					'color'      => (string) ($c['color'] ?? ''),
 					'sort'       => (int) ($c['sort'] ?? 10),
 					'unit_price' => (float) ($c['unit_price'] ?? $unit),
 					'list_price' => (float) ($c['list_price'] ?? ($unit * $buy)),
@@ -573,9 +600,124 @@ JS;
 		}
 	}
 
+	/**
+	 * Precarga el carrito con N DigiTickets al azar para un sorteo.
+	 * Reutiliza el flujo de packs (lock + pick + claim + add_to_cart) fuera del AJAX.
+	 * Usado por los recordatorios de pedidos cancelados/fallidos.
+	 *
+	 * @param int   $product_id
+	 * @param int   $qty
+	 * @param int   $campaign_id
+	 * @param array $opts        'replace' => bool (reemplaza líneas de preload previas del mismo producto).
+	 * @return array{tickets:string[],cart_key:string}|\WP_Error
+	 */
+	public static function preload_cart_for_product(int $product_id, int $qty, int $campaign_id = 0, array $opts = array()) {
+		if (!function_exists('WC') || !function_exists('lty_is_lottery_product')) {
+			return new WP_Error('ss_preload_unavailable', 'WooCommerce/Lottery no disponible.');
+		}
+
+		$product_id = absint($product_id);
+		$qty        = max(1, (int) $qty);
+
+		$product = wc_get_product($product_id);
+		if (!$product || !lty_is_lottery_product($product)) {
+			return new WP_Error('ss_preload_invalid_product', 'Producto inválido.');
+		}
+		if (method_exists($product, 'is_closed') && $product->is_closed()) {
+			return new WP_Error('ss_preload_closed', 'Este sorteo ya no acepta DigiTickets.');
+		}
+
+		self::ensure_wc_cart();
+
+		if (!self::acquire_product_lock($product_id)) {
+			return new WP_Error('ss_preload_busy', 'Hay mucha demanda. Intenta de nuevo.');
+		}
+
+		$claimed = array();
+		try {
+			clean_post_cache($product_id);
+			wc_delete_product_transients($product_id);
+
+			if (!empty($opts['replace']) && WC()->cart) {
+				foreach (WC()->cart->get_cart() as $key => $item) {
+					if ((int) ($item['product_id'] ?? 0) === $product_id && !empty($item['ss_cfr_preload'])) {
+						WC()->cart->remove_cart_item($key);
+					}
+				}
+			}
+
+			$customer_id = self::get_customer_lock_id();
+			$tickets     = self::pick_and_claim_tickets($product_id, $qty, $customer_id);
+			if (count($tickets) !== $qty) {
+				return new WP_Error('ss_preload_no_tickets', 'No hay suficientes DigiTickets disponibles.');
+			}
+			$claimed = $tickets;
+
+			$ticket_csv = implode(',', $tickets);
+			$_REQUEST['lty_lottery_ticket_numbers'] = $ticket_csv;
+			$_POST['lty_lottery_ticket_numbers']    = $ticket_csv;
+
+			$cart_item_data = array(
+				'lty_lottery'         => array(
+					'tickets' => array_values($tickets),
+				),
+				'ss_cfr_preload'      => 1,
+				'ss_pack_campaign_id' => absint($campaign_id),
+				'ss_pack_claimed_at'  => time(),
+				'ss_pack_line_uid'    => uniqid('sscfr', true),
+			);
+
+			$cart_key = WC()->cart->add_to_cart($product_id, $qty, 0, array(), $cart_item_data);
+			if (!$cart_key) {
+				self::release_claimed_tickets($product_id, $claimed, $customer_id);
+				$notices = wc_get_notices('error');
+				$msg     = 'No se pudo agregar al carrito.';
+				if (!empty($notices[0]['notice'])) {
+					$msg = wp_strip_all_tags($notices[0]['notice']);
+				}
+				wc_clear_notices();
+				return new WP_Error('ss_preload_add_failed', $msg);
+			}
+
+			if (!self::cart_tickets_are_exclusive($product_id, $tickets, $customer_id)) {
+				WC()->cart->remove_cart_item($cart_key);
+				self::release_claimed_tickets($product_id, $claimed, $customer_id);
+				return new WP_Error('ss_preload_conflict', 'Esos DigiTickets acabaron de tomarse.');
+			}
+
+			if (WC()->session) {
+				WC()->session->set('ss_pack_campaign_id', absint($campaign_id));
+				WC()->session->set('ss_pack_tickets', $tickets);
+				WC()->session->set('ss_pack_lock_id', $customer_id);
+			}
+
+			if (WC()->cart) {
+				WC()->cart->calculate_totals();
+			}
+			if (WC()->session && method_exists(WC()->session, 'save_data')) {
+				WC()->session->save_data();
+			}
+
+			return array(
+				'tickets'  => $tickets,
+				'cart_key' => (string) $cart_key,
+			);
+		} finally {
+			self::release_product_lock($product_id);
+		}
+	}
+
 	private static function resolve_pack_quantity(int $campaign_id, int $product_id): int {
 		if ($campaign_id === 0) {
 			return 1;
+		}
+
+		// Tarjetas de regalo (módulo Gift Tickets): X = cantidad a comprar.
+		if (class_exists('SorteoSeguro_Gift_Tickets')) {
+			$gift_qty = SorteoSeguro_Gift_Tickets::pack_quantity_for_campaign($campaign_id, $product_id);
+			if ($gift_qty > 0) {
+				return $gift_qty;
+			}
 		}
 
 		if (!class_exists('Promo_Engine_Stable')) {
@@ -586,11 +728,12 @@ JS;
 			return 0;
 		}
 
-		$show         = get_post_meta($campaign_id, '_promo_show_on_product', true);
-		$show_preload = get_post_meta($campaign_id, '_promo_show_on_preload', true);
-		if ($show !== 'yes' && $show_preload !== 'yes') {
-			return 0;
-		}
+        $show         = get_post_meta($campaign_id, '_promo_show_on_product', true);
+        $show_preload = get_post_meta($campaign_id, '_promo_show_on_preload', true);
+        $show_cyber   = get_post_meta($campaign_id, '_promo_show_on_cyber', true);
+        if ($show !== 'yes' && $show_preload !== 'yes' && $show_cyber !== 'yes') {
+            return 0;
+        }
 
 		if ($show === 'yes') {
 			if (method_exists('Promo_Engine_Stable', 'campaign_targets_product')
@@ -605,16 +748,25 @@ JS;
 			}
 		}
 
-		if ($show_preload === 'yes' && method_exists('Promo_Engine_Stable', 'get_preload_page_campaigns')) {
-			$campaigns = Promo_Engine_Stable::get_preload_page_campaigns($product_id);
-			foreach ($campaigns as $c) {
-				if ((int) $c['id'] === $campaign_id) {
-					return max(1, (int) $c['buy']);
-				}
-			}
-		}
+        if ($show_preload === 'yes' && method_exists('Promo_Engine_Stable', 'get_preload_page_campaigns')) {
+            $campaigns = Promo_Engine_Stable::get_preload_page_campaigns($product_id);
+            foreach ($campaigns as $c) {
+                if ((int) $c['id'] === $campaign_id) {
+                    return max(1, (int) $c['buy']);
+                }
+            }
+        }
 
-		return 0;
+        if ($show_cyber === 'yes' && method_exists('Promo_Engine_Stable', 'get_cyber_page_campaigns')) {
+            $campaigns = Promo_Engine_Stable::get_cyber_page_campaigns($product_id);
+            foreach ($campaigns as $c) {
+                if ((int) $c['id'] === $campaign_id) {
+                    return max(1, (int) $c['buy']);
+                }
+            }
+        }
+
+        return 0;
 	}
 
 	/**
@@ -1688,6 +1840,7 @@ input[name="search-ticket"] {
 	padding: 0;
 	border: 0;
 	background: transparent;
+	container-type: inline-size;
 	font-family: var(--ss-font-family, "Montserrat", "Poppins", "Segoe UI", sans-serif) !important;
 }
 .ss-packs-wrap,
@@ -2142,8 +2295,8 @@ input[name="search-ticket"] {
 	}
 	.ss-pack-tag {
 		display: inline-flex !important;
-		width: 70px !important;
-		max-width: 70px !important;
+		width: 74px !important;
+		max-width: 74px !important;
 		font-size: 0.55rem !important;
 		padding: 2px 5px !important;
 		gap: 3px !important;
@@ -2236,6 +2389,174 @@ input[name="search-ticket"] {
 	.ss-pack-metrics { min-width: 52px !important; }
 	.ss-pack-pricebox { min-width: 78px !important; }
 	.ss-packs-trust-item { padding: 8px 4px; }
+}
+
+/* ---------- Banners de packs en ficha normal (/producto/) ---------- */
+.ss-pack-banners {
+	display: flex;
+	flex-direction: column;
+	gap: 4cqw;
+	margin: 0 0 4cqw;
+}
+
+.ss-pack-banners__head {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 3cqw;
+	padding: 2.8cqw 3.4cqw;
+	border-radius: 3.2cqw;
+	background: linear-gradient(180deg, #3b0bb0 0%, #2a0794 100%);
+	color: #ffffff;
+	overflow: hidden;
+	box-shadow: 0 12px 30px rgba(40, 10, 120, 0.25);
+}
+.ss-pack-banners__head::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: radial-gradient(70% 140% at 90% 50%, rgba(124, 58, 237, 0.55), rgba(124, 58, 237, 0) 60%);
+	pointer-events: none;
+}
+.ss-pack-banners__head > * {
+	position: relative;
+	z-index: 1;
+}
+.ss-pack-banners__brand {
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	line-height: 0.92;
+	font-weight: 900;
+	text-transform: uppercase;
+	text-align: center;
+	background: linear-gradient(160deg, #ff6a2b 0%, #e0123d 100%);
+	color: #ffffff;
+	padding: 2cqw 3.2cqw;
+	border-radius: 2cqw;
+	transform: rotate(-6deg);
+	box-shadow: 0 10px 22px rgba(0, 0, 0, 0.3);
+}
+.ss-pack-banners__brand .l1 {
+	font-size: 2.4cqw;
+	letter-spacing: 0.04em;
+}
+.ss-pack-banners__brand .l2 {
+	font-size: 6cqw;
+	letter-spacing: 0.01em;
+	margin-top: 0.2cqw;
+}
+.ss-pack-banners__copy {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.ss-pack-banners__title {
+	margin: 0;
+	font-size: 3.4cqw;
+	font-weight: 700;
+	line-height: 1.05;
+}
+.ss-pack-banners__sub {
+	margin: 0.6cqw 0 0;
+	font-size: 2.7cqw;
+	font-weight: 600;
+	line-height: 1.15;
+}
+.ss-pack-banners__sub strong {
+	color: #ffd21f;
+	font-weight: 900;
+}
+.ss-pack-banners__bag {
+	flex: 0 0 auto;
+	width: 8.5cqw;
+	height: 9.5cqw;
+	color: rgba(255, 255, 255, 0.45);
+}
+.ss-pack-banners__bag-img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+
+.ss-pack-card--promo {
+	margin-top: 8px;
+}
+
+.ss-pack-banner__tab {
+	position: absolute;
+	z-index: 5;
+	top: -4.4cqw;
+	left: 3.6cqw;
+	display: inline-flex;
+	align-items: center;
+	gap: 1.2cqw;
+	background: linear-gradient(180deg, #ffe15a, #ffcf12);
+	color: #231000;
+	font-weight: 900;
+	font-size: 2.3cqw;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	padding: 1.2cqw 3cqw;
+	border-radius: 1.2cqw;
+	transform: skewX(-16deg);
+	box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+.ss-pack-banner__tab > * {
+	transform: skewX(16deg);
+}
+.ss-pack-banner__tab svg {
+	width: 1.2em;
+	height: 1.2em;
+	color: #4c0cdf;
+}
+
+.ss-pack-banner__tickets {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	align-self: center;
+	width: 52px;
+	height: 52px;
+}
+.ss-pack-banner__tickets-img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+
+.ss-pack-banner__pct {
+	position: absolute;
+	z-index: 6;
+	top: -4.4cqw;
+	right: -1.5cqw;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 10cqw;
+	height: 10cqw;
+	background: #e8213f;
+	color: #ffffff;
+	font-weight: 700;
+	line-height: 1;
+	text-align: center;
+	transform: rotate(-8deg);
+	box-shadow: 0 2cqw 4cqw rgba(232, 33, 63, 0.4);
+	clip-path: polygon(50% 0%, 61% 9%, 75% 5%, 80% 18%, 95% 22%, 92% 36%, 100% 50%, 92% 64%, 95% 78%, 80% 82%, 75% 95%, 61% 91%, 50% 100%, 39% 91%, 25% 95%, 20% 82%, 5% 78%, 8% 64%, 0% 50%, 8% 36%, 5% 22%, 20% 18%, 25% 5%, 39% 9%);
+}
+.ss-pack-banner__pct b {
+	font-size: 2.2cqw;
+	font-weight: 700;
+}
+
+@media (max-width: 760px) {
+	.ss-pack-banner__tickets {
+		width: 28px;
+		height: 28px;
+	}
 }
 CSS;
 	}
@@ -2330,6 +2651,132 @@ CSS;
 		});
 	}
 
+	function bannerTicketsSvg() {
+		return '<svg viewBox="0 0 124 100" aria-hidden="true">' +
+			'<g transform="translate(4,20) rotate(-22 30 32)"><rect x="0" y="0" width="60" height="64" rx="14" fill="#5b21b6" stroke="#3b0bb0" stroke-width="3"/></g>' +
+			'<g transform="translate(22,10) rotate(-10 30 32)"><rect x="0" y="0" width="60" height="64" rx="14" fill="#6d28d9" stroke="#3b0bb0" stroke-width="3"/><circle cx="5" cy="32" r="3.2" fill="#2a0794"/><circle cx="55" cy="32" r="3.2" fill="#2a0794"/></g>' +
+			'<g transform="translate(42,4) rotate(6 30 32)">' +
+				'<rect x="0" y="0" width="62" height="66" rx="15" fill="#8b5cf6" stroke="#3b0bb0" stroke-width="3.2"/>' +
+				'<circle cx="5" cy="33" r="3.4" fill="#2a0794"/><circle cx="57" cy="33" r="3.4" fill="#2a0794"/>' +
+				'<circle cx="31" cy="31" r="17" fill="#ffffff"/>' +
+				'<g transform="rotate(-38 31 31)">' +
+					'<rect x="18" y="26" width="27" height="6.5" rx="3.25" fill="#6d28d9"/>' +
+					'<rect x="19" y="37" width="22" height="6.5" rx="3.25" fill="#6d28d9"/>' +
+				'</g>' +
+			'</g>' +
+		'</svg>';
+	}
+
+	function bagSvg() {
+		return '<svg viewBox="0 0 24 24" fill="none"><path d="M6.2 8.2h11.6l-.9 11.6a1.4 1.4 0 0 1-1.4 1.3H8.5a1.4 1.4 0 0 1-1.4-1.3L6.2 8.2z" stroke="currentColor" stroke-width="1.7"/><path d="M9 8.2V6.4a3 3 0 0 1 6 0v1.8" stroke="currentColor" stroke-width="1.7"/></svg>';
+	}
+
+	function bagImage(cfg) {
+		var url = cfg && cfg.assets && cfg.assets.bag;
+		if (url) {
+			return '<img class="ss-pack-banners__bag-img" src="' + url + '" alt="" loading="lazy" decoding="async">';
+		}
+		return bagSvg();
+	}
+
+	function ticketsImage(cfg) {
+		var url = cfg && cfg.assets && cfg.assets.tickets;
+		if (url) {
+			return '<img class="ss-pack-banner__tickets-img" src="' + url + '" alt="" loading="lazy" decoding="async">';
+		}
+		return bannerTicketsSvg();
+	}
+
+	function buildProductBannersHead(cfg) {
+		var el = document.createElement('div');
+		el.className = 'ss-pack-banners__head';
+		el.setAttribute('aria-hidden', 'true');
+		el.innerHTML =
+			'<span class="ss-pack-banners__brand"><span class="l1">PACK ESPECIAL</span><span class="l2">CYBER</span></span>' +
+			'<div class="ss-pack-banners__copy">' +
+				'<p class="ss-pack-banners__title">Aprovecha los Packs Cyber</p>' +
+				'<p class="ss-pack-banners__sub">Más de un <strong>80%</strong> de descuento<br>para tus DigiTickets</p>' +
+			'</div>' +
+			'<span class="ss-pack-banners__bag">' + bagImage(cfg) + '</span>';
+		return el;
+	}
+
+	function buildProductBanner(b, cfg, n) {
+		var i18n = (cfg && cfg.i18n) ? cfg.i18n : {};
+		var el = document.createElement('div');
+		el.className = 'ss-pack-card ss-pack-card--promo ' + packThemeClass({ buy: b.qty, pay: b.pay });
+		el.setAttribute('role', 'button');
+		el.setAttribute('tabindex', '0');
+		el.setAttribute('data-campaign-id', b.id);
+		el.setAttribute('data-buy', b.qty);
+		el.setAttribute('data-pay', b.pay);
+		el.setAttribute('data-cta', i18n.select || 'SELECCIONAR');
+		el.setAttribute('aria-pressed', 'false');
+
+		var accent = normalizeHexColor(b.color);
+		if (accent) {
+			el.style.setProperty('--ss-pack-accent', accent);
+			el.style.setProperty('--ss-pack-accent-soft', hexToRgba(accent, 0.14));
+			el.style.setProperty('--ss-pack-glow', hexToRgba(accent, 0.2));
+		}
+
+		var pct = Number(b.percent) || 0;
+		var qty = Number(b.qty) || 1;
+		var pay = Number(b.pay) || 1;
+		var showPromo = qty > 1;
+		var bolt = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M13 2 4.5 13.2h6L9.2 22 19.5 9.8h-6.2L13 2z"/></svg>';
+
+		el.innerHTML =
+			'<span class="ss-pack-banner__tab">' + bolt + '<span>PACK CYBER ' + n + '</span></span>' +
+			'<span class="ss-pack-check" aria-hidden="true"></span>' +
+			'<span class="ss-pack-banner__tickets" aria-hidden="true">' + ticketsImage(cfg) + '</span>' +
+			'<div class="ss-pack-info">' +
+				'<div class="ss-pack-label"></div>' +
+				'<div class="ss-pack-packname"></div>' +
+				'<span class="ss-pack-tag"' + (showPromo ? '' : ' hidden') + '>' + tagIconSvg() + '<span class="ss-pack-tag-text"></span></span>' +
+			'</div>' +
+			'<div class="ss-pack-metrics">' +
+				'<div class="ss-pack-metric"><div class="ss-pack-metric-label">' + (i18n.priceNormal || 'PRECIO NORMAL') + '</div><div class="ss-pack-list" hidden></div></div>' +
+				'<div class="ss-pack-metric ss-pack-metric--save"><div class="ss-pack-metric-label">' + (i18n.saveLabel || 'AHORRAS') + '</div><div class="ss-pack-save" hidden></div></div>' +
+			'</div>' +
+			'<div class="ss-pack-pricebox">' +
+				'<div class="ss-pack-price"></div>' +
+				'<div class="ss-pack-per"></div>' +
+				'<div class="ss-pack-cta"></div>' +
+			'</div>' +
+			(pct > 0 ? '<span class="ss-pack-banner__pct"><b>' + pct + '%<br>DCTO.</b></span>' : '');
+
+		var c = { buy: qty, pay: pay };
+		el.querySelector('.ss-pack-label').textContent = titleFor(c, i18n);
+		el.querySelector('.ss-pack-packname').textContent = packNameFor(c, i18n);
+
+		if (showPromo) {
+			el.querySelector('.ss-pack-tag-text').textContent = (i18n.promoTag || "Pagas {pay} y\nrecibes {buy}")
+				.replace('{pay}', pay)
+				.replace('{buy}', qty);
+		}
+
+		var listEl = el.querySelector('.ss-pack-list');
+		var saveEl = el.querySelector('.ss-pack-save');
+		if (qty > 1 && Number(b.list_price) > Number(b.price)) {
+			listEl.hidden = false;
+			listEl.textContent = formatMoney(b.list_price);
+		} else {
+			listEl.closest('.ss-pack-metric').style.visibility = 'hidden';
+		}
+		if (qty > 1 && Number(b.savings) > 0) {
+			saveEl.hidden = false;
+			saveEl.textContent = formatMoney(b.savings);
+		} else {
+			saveEl.closest('.ss-pack-metric').style.visibility = 'hidden';
+		}
+
+		el.querySelector('.ss-pack-price').textContent = formatMoney(b.price);
+		el.querySelector('.ss-pack-per').textContent = 'por ' + qty + ' DigiTickets';
+		el.querySelector('.ss-pack-cta').textContent = i18n.select || 'SELECCIONAR';
+		return el;
+	}
+
 	function packThemeClass(c) {
 		var buy = Number(c.buy || 0);
 		var pay = Number(c.pay || 0);
@@ -2341,6 +2788,23 @@ CSS;
 		if (buy === 30 && pay === 9) return 'ss-pack--30x9';
 		if (buy === 40 && pay === 10) return 'ss-pack--40x10';
 		return 'ss-pack--1x1';
+	}
+
+	function normalizeHexColor(v) {
+		var s = String(v || '').trim();
+		if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(s)) return '';
+		if (s.length === 4) {
+			s = '#' + s[1] + s[1] + s[2] + s[2] + s[3] + s[3];
+		}
+		return s.toLowerCase();
+	}
+
+	function hexToRgba(hex, alpha) {
+		var h = hex.replace('#', '');
+		var r = parseInt(h.substring(0, 2), 16);
+		var g = parseInt(h.substring(2, 4), 16);
+		var b = parseInt(h.substring(4, 6), 16);
+		return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
 	}
 
 	function isMasElegido(c) {
@@ -2357,6 +2821,7 @@ CSS;
 	}
 
 	function packNameFor(c, i18n) {
+		if (Number(c.gift) > 0) return i18n.packGift || 'PACK REGALO';
 		if (Number(c.buy) === 1 && Number(c.pay) === 1) return i18n.packBasic || 'PACK BÁSICO';
 		return (i18n.packName || 'PACK {buy}x{pay}').replace('{buy}', c.buy).replace('{pay}', c.pay);
 	}
@@ -2475,6 +2940,16 @@ CSS;
 
 		var grid = wrap.querySelector('.ss-packs-grid');
 
+		if (cfg.productBanners && cfg.productBanners.length) {
+			var banners = document.createElement('div');
+			banners.className = 'ss-pack-banners';
+			banners.appendChild(buildProductBannersHead(cfg));
+			cfg.productBanners.forEach(function (b, i) {
+				banners.appendChild(buildProductBanner(b, cfg, i + 1));
+			});
+			grid.parentNode.insertBefore(banners, grid);
+		}
+
 		cfg.campaigns.forEach(function (c) {
 			var btn = document.createElement('div');
 			btn.setAttribute('role', 'button');
@@ -2485,9 +2960,19 @@ CSS;
 			btn.setAttribute('data-pay', c.pay);
 			btn.setAttribute('aria-pressed', 'false');
 
+			var accent = normalizeHexColor(c.color);
+			if (accent) {
+				btn.style.setProperty('--ss-pack-accent', accent);
+				btn.style.setProperty('--ss-pack-accent-soft', hexToRgba(accent, 0.14));
+				btn.style.setProperty('--ss-pack-glow', hexToRgba(accent, 0.2));
+			}
+
+			var isGift = Number(c.gift) > 0;
 			var badgeText = '';
 			if (c.badge && String(c.badge).trim()) {
 				badgeText = String(c.badge).trim();
+			} else if (isGift) {
+				badgeText = cfg.i18n.giftBadge || 'REGALO';
 			} else if (isMasElegido(c)) {
 				badgeText = cfg.i18n.bestBadge;
 			} else if (isMasConveniente(c)) {
@@ -2496,13 +2981,13 @@ CSS;
 			if (badgeText) btn.classList.add('has-badge');
 			if (isMasElegido(c)) btn.classList.add('is-best');
 
-			var showPromo = Number(c.buy) > 1;
+			var showPromo = Number(c.buy) > 1 || isGift;
 			var ctaLabel = isMasElegido(c) && cfg.i18n.selectBest ? cfg.i18n.selectBest : cfg.i18n.select;
 
 			btn.innerHTML =
 				(badgeText ? '<span class="ss-pack-badge"></span>' : '') +
 				'<span class="ss-pack-check" aria-hidden="true"></span>' +
-				'<span class="ss-pack-icon">' + ticketIconSvg(iconCountForBuy(c.buy)) + '</span>' +
+				'<span class="ss-pack-icon">' + ticketIconSvg(iconCountForBuy(isGift ? (Number(c.buy) + Number(c.gift)) : c.buy)) + '</span>' +
 				'<div class="ss-pack-info">' +
 					'<div class="ss-pack-label"></div>' +
 					'<div class="ss-pack-packname"></div>' +
@@ -2522,7 +3007,11 @@ CSS;
 			btn.querySelector('.ss-pack-label').textContent = titleFor(c, cfg.i18n);
 			btn.querySelector('.ss-pack-packname').textContent = packNameFor(c, cfg.i18n);
 
-			if (showPromo) {
+			if (isGift) {
+				btn.querySelector('.ss-pack-tag-text').textContent = (cfg.i18n.giftTag || "Lleva {buy} y te regalamos {gift}")
+					.replace('{buy}', c.buy)
+					.replace('{gift}', c.gift);
+			} else if (showPromo) {
 				btn.querySelector('.ss-pack-tag-text').textContent = (cfg.i18n.promoTag || "Pagas {pay} y\nrecibes {buy}")
 					.replace('{pay}', c.pay)
 					.replace('{buy}', c.buy);
@@ -2571,7 +3060,7 @@ CSS;
 	}
 
 	function markSelected(btn) {
-		document.querySelectorAll('.ss-pack-card').forEach(function (el) {
+		document.querySelectorAll('.ss-pack-card, .ss-pack-banner').forEach(function (el) {
 			el.classList.remove('is-selected', 'is-loading');
 			el.setAttribute('aria-pressed', 'false');
 			var cta = el.querySelector('.ss-pack-cta');
@@ -2587,7 +3076,7 @@ CSS;
 		var cfg = window.ssPacksLottery;
 		if (btn.getAttribute('aria-disabled') === 'true') return;
 		markSelected(btn);
-		document.querySelectorAll('.ss-pack-card').forEach(function (el) {
+		document.querySelectorAll('.ss-pack-card, .ss-pack-banner').forEach(function (el) {
 			el.setAttribute('aria-disabled', 'true');
 			el.style.pointerEvents = 'none';
 		});
@@ -2625,7 +3114,7 @@ CSS;
 				}
 				var msg = (res && res.data && res.data.message) ? res.data.message : cfg.i18n.error;
 				setStatus(msg, true);
-				document.querySelectorAll('.ss-pack-card').forEach(function (el) {
+				document.querySelectorAll('.ss-pack-card, .ss-pack-banner').forEach(function (el) {
 					el.removeAttribute('aria-disabled');
 					el.style.pointerEvents = '';
 					el.classList.remove('is-selected', 'is-loading');
@@ -2636,7 +3125,7 @@ CSS;
 			})
 			.catch(function () {
 				setStatus(cfg.i18n.error, true);
-				document.querySelectorAll('.ss-pack-card').forEach(function (el) {
+				document.querySelectorAll('.ss-pack-card, .ss-pack-banner').forEach(function (el) {
 					el.removeAttribute('aria-disabled');
 					el.style.pointerEvents = '';
 					el.classList.remove('is-selected', 'is-loading');
@@ -2669,7 +3158,7 @@ CSS;
 		var tries = 0;
 		var timer = setInterval(function () {
 			tries++;
-			var card = document.querySelector('.ss-pack-card[data-campaign-id="' + campaign.id + '"]');
+			var card = document.querySelector('.ss-pack-card[data-campaign-id="' + campaign.id + '"], .ss-pack-banner[data-campaign-id="' + campaign.id + '"]');
 			if (card) {
 				clearInterval(timer);
 				selectPack(String(campaign.id), card);
@@ -2695,7 +3184,7 @@ CSS;
 		}, true);
 
 		document.addEventListener('click', function (e) {
-			var btn = e.target.closest ? e.target.closest('.ss-pack-card') : null;
+			var btn = e.target.closest ? e.target.closest('.ss-pack-card, .ss-pack-banner') : null;
 			if (!btn || btn.getAttribute('aria-disabled') === 'true') return;
 			e.preventDefault();
 			selectPack(btn.getAttribute('data-campaign-id') || '0', btn);
@@ -2703,7 +3192,7 @@ CSS;
 
 		document.addEventListener('keydown', function (e) {
 			if (e.key !== 'Enter' && e.key !== ' ') return;
-			var btn = e.target.closest ? e.target.closest('.ss-pack-card') : null;
+			var btn = e.target.closest ? e.target.closest('.ss-pack-card, .ss-pack-banner') : null;
 			if (!btn || btn.getAttribute('aria-disabled') === 'true') return;
 			e.preventDefault();
 			selectPack(btn.getAttribute('data-campaign-id') || '0', btn);

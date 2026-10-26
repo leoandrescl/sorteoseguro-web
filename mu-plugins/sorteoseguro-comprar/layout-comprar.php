@@ -108,6 +108,52 @@ $resolve_prize_image = static function ($image) use ($gallery) {
 	<div class="ss-comprar__layout">
 
 		<aside class="ss-comprar__buy ss-pdp__right purchase-panel">
+			<?php if (class_exists('SorteoSeguro_Comprar_Bono') && SorteoSeguro_Comprar_Bono::is_oferta_child()) : ?>
+				<?php
+				$ss_bono_amount = '';
+				if (class_exists('Promo_Engine_Stable') && method_exists('Promo_Engine_Stable', 'get_preload_bono_message_data')) {
+					$ss_bono_data = Promo_Engine_Stable::get_preload_bono_message_data($product_id);
+					if (is_array($ss_bono_data) && !empty($ss_bono_data['id'])) {
+						$ss_bono_type = isset($ss_bono_data['type']) ? (string) $ss_bono_data['type'] : 'fixed';
+						$ss_bono_raw = get_post_meta((int) $ss_bono_data['id'], '_promo_amount', true);
+						if (is_numeric($ss_bono_raw) && (float) $ss_bono_raw > 0) {
+							if ($ss_bono_type === 'percent') {
+								$ss_bono_num = (float) $ss_bono_raw;
+								$ss_bono_amount = (string) ($ss_bono_num == floor($ss_bono_num) ? (int) $ss_bono_num : $ss_bono_num) . '%';
+							} else {
+								$ss_bono_amount = '$' . number_format((float) $ss_bono_raw, 0, ',', '.');
+							}
+						}
+					}
+				}
+				$ss_bono_gift_url = function_exists('content_url') ? content_url('mu-plugins/sorteoseguro-comprar/assets/img-bono-regalo.png') : '';
+				$ss_bono_ticket_url = function_exists('content_url') ? content_url('mu-plugins/sorteoseguro-comprar/assets/img-bono-ticket.png') : '';
+				?>
+				<?php if ($ss_bono_amount !== '') : ?>
+				<div class="ss-bono-banner" role="note" aria-label="Bono especial">
+					<?php if ($ss_bono_gift_url !== '') : ?>
+					<img class="ss-bono-gift" src="<?php echo esc_url($ss_bono_gift_url); ?>" alt="" aria-hidden="true" loading="eager" decoding="async">
+					<?php endif; ?>
+					<div class="ss-bono-center">
+						<span class="ss-bono-pill">Bienvenido a Sorteo Seguro</span>
+						<span class="ss-bono-sub">Aprovecha este regalo para ti</span>
+						<span class="ss-bono-title">Bono <strong>Especial</strong></span>
+					</div>
+					<div class="ss-bono-ticket">
+						<?php if ($ss_bono_ticket_url !== '') : ?>
+						<img class="ss-bono-ticket-bg" src="<?php echo esc_url($ss_bono_ticket_url); ?>" alt="" aria-hidden="true" loading="eager" decoding="async">
+						<?php endif; ?>
+						<span class="ss-bono-amount"><?php echo esc_html($ss_bono_amount); ?></span>
+					</div>
+				</div>
+				<?php endif; ?>
+			<?php endif; ?>
+			<?php
+			if (class_exists('SorteoSeguro_Comprar_Bono') && SorteoSeguro_Comprar_Bono::is_oferta_child()
+				&& function_exists('ss_bono_contador_render')) {
+				ss_bono_contador_render();
+			}
+			?>
 			<h1 class="ss-pdp-title"><?php echo esc_html($title); ?></h1>
 
 			<?php if ($sales_open) : ?>
